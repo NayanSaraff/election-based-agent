@@ -1,9 +1,6 @@
 ﻿'use strict';
 
 const CONFIG = window.ELECTIQ_CONFIG || {};
-const RUNTIME_CONFIG_KEY = 'electiq_runtime_config';
-const DEFAULT_GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
-const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
 
 const GEMINI_COOLDOWN_KEY = 'electiq_gemini_cooldown_until';
 const GEMINI_COOLDOWN_MS = 60 * 60 * 1000;
@@ -76,80 +73,20 @@ function filterElectionHeadlines(items) {
     .filter((item) => item.title && isElectionHeadline(item.title));
 }
 
-function getRuntimeConfig() {
-  try {
-    const raw = localStorage.getItem(RUNTIME_CONFIG_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (error) {
-    return {};
-  }
-}
-
-function setRuntimeGeminiKey(apiKey) {
-  if (!apiKey) return;
-  const runtime = getRuntimeConfig();
-  const next = {
-    ...runtime,
-    provider: 'gemini',
-    gemini: {
-      ...(runtime.gemini || {}),
-      apiKey,
-      apiUrl: (runtime.gemini && runtime.gemini.apiUrl) || (CONFIG.gemini && CONFIG.gemini.apiUrl) || DEFAULT_GEMINI_API_URL,
-      model: (runtime.gemini && runtime.gemini.model) || (CONFIG.gemini && CONFIG.gemini.model) || DEFAULT_GEMINI_MODEL,
-    },
-  };
-  try {
-    localStorage.setItem(RUNTIME_CONFIG_KEY, JSON.stringify(next));
-  } catch (error) {
-    // Ignore storage errors.
-  }
-}
-
-function buildEffectiveConfig() {
-  const runtime = getRuntimeConfig();
-  return {
-    provider: runtime.provider || CONFIG.provider || 'gemini',
-    anthropic: { ...(CONFIG.anthropic || {}), ...(runtime.anthropic || {}) },
-    gemini: {
-      apiUrl: DEFAULT_GEMINI_API_URL,
-      model: DEFAULT_GEMINI_MODEL,
-      ...(CONFIG.gemini || {}),
-      ...(runtime.gemini || {}),
-    },
-    newsapi: { ...(CONFIG.newsapi || {}) },
-    newsdataio: { ...(CONFIG.newsdataio || {}) },
-  };
-}
-
-function promptForRuntimeGeminiKey() {
-  const currentProvider = (CONFIG.provider || 'gemini').toLowerCase();
-  if (currentProvider !== 'gemini') return false;
-  if (typeof window === 'undefined' || typeof window.prompt !== 'function') return false;
-
-  const input = window.prompt('Gemini API key is missing on this deployment. Paste your Gemini key to continue. The key is stored only in this browser.');
-  const key = String(input || '').trim();
-  if (!key) return false;
-
-  setRuntimeGeminiKey(key);
-  return true;
-}
-
 function getApiConfig() {
-  const effective = buildEffectiveConfig();
-
-  if (effective.provider === 'anthropic' && effective.anthropic?.apiKey) {
-    return { provider: 'anthropic', ...effective.anthropic };
+  if (CONFIG.provider === 'anthropic' && CONFIG.anthropic?.apiKey) {
+    return { provider: 'anthropic', ...CONFIG.anthropic };
   }
-  if (effective.provider === 'gemini' && effective.gemini?.apiKey) {
-    return { provider: 'gemini', ...effective.gemini };
+  if (CONFIG.provider === 'gemini' && CONFIG.gemini?.apiKey) {
+    return { provider: 'gemini', ...CONFIG.gemini };
   }
-  if (effective.gemini?.apiKey) {
-    return { provider: 'gemini', ...effective.gemini };
+  if (CONFIG.gemini?.apiKey) {
+    return { provider: 'gemini', ...CONFIG.gemini };
   }
-  if (effective.anthropic?.apiKey) {
-    return { provider: 'anthropic', ...effective.anthropic };
+  if (CONFIG.anthropic?.apiKey) {
+    return { provider: 'anthropic', ...CONFIG.anthropic };
   }
-  return { provider: effective.provider || 'gemini', apiUrl: '', apiKey: '', model: '' };
+  return { provider: CONFIG.provider || 'gemini', apiUrl: '', apiKey: '', model: '' };
 }
 
 const CHAT_SYSTEM = `You are ElectIQ India, a friendly, neutral civic education assistant.
@@ -691,6 +628,90 @@ const QUIZ_FALLBACK = {
     }
   ]
 };
+
+function getFallbackQuizQuestion(category) {
+  const bucket = QUIZ_FALLBACK[category] || QUIZ_FALLBACK.General;
+  return bucket[Math.floor(Math.random() * bucket.length)] || QUIZ_FALLBACK.General[0];
+}
+
+function buildLocalFollowups(text) {
+  const prompt = String(text || '').toLowerCase();
+  if (prompt.includes('president') || prompt.includes('electoral college')) {
+    return [
+      'Who can vote in the President election of India?',
+      'How is vote value calculated for President election?',
+      'How is the Vice-President elected in India?',
+    ];
+  }
+  if (prompt.includes('evm') || prompt.includes('vvpat')) {
+    return [
+      'How does VVPAT verification work?',
+      'Why are EVMs used in India?',
+      'Who secures EVMs before counting?',
+    ];
+  }
+  if (prompt.includes('register') || prompt.includes('voter')) {
+    return [
+      'How do I register to vote online in India?',
+      'Which documents are needed for voter registration?',
+      'How can I correct details on my voter card?',
+    ];
+  }
+  return [
+    'Explain Lok Sabha election steps in simple words.',
+    'What are key election laws in India?',
+    'How does counting and result declaration work?',
+  ];
+}
+
+function buildLocalChatResponse(userText) {
+  const prompt = String(userText || '').trim();
+  const lower = prompt.toLowerCase();
+  let answer = '';
+
+  if (lower.includes('president') || lower.includes('electoral college')) {
+    answer = [
+      'India uses an indirect electoral college for the President and Vice-President.',
+      'President election: elected MPs and elected MLAs vote using single transferable vote and secret ballot.',
+      'Vice-President election: members of both Houses of Parliament vote using single transferable vote.',
+      'This is different from Lok Sabha elections, where citizens vote directly.'
+    ].join('\n');
+  } else if (lower.includes('evm') || lower.includes('vvpat')) {
+    answer = [
+      'EVM records the vote electronically at the polling station.',
+      'VVPAT prints a short paper slip visible to the voter for a few seconds.',
+      'The slip then drops into a sealed box for audit and verification.',
+      'This supports transparency while keeping vote counting efficient.'
+    ].join('\n');
+  } else if (lower.includes('register') || lower.includes('voter')) {
+    answer = [
+      'To vote in India, you must be 18+ and enrolled in the electoral roll.',
+      'You can apply through NVSP or authorized voter registration channels.',
+      'Keep identity and address proof ready during registration.',
+      'After verification, your name is added to the roll and you can vote.'
+    ].join('\n');
+  } else {
+    answer = [
+      'Free mode is active, so this answer is generated from built-in civic content.',
+      'Indian election flow in short: electoral roll preparation, nominations, scrutiny, campaign period, polling, counting, and final declaration.',
+      'Key institutions include the Election Commission of India, returning officers, and polling staff.',
+      'Ask a specific topic like Lok Sabha, Vidhan Sabha, voter registration, EVM/VVPAT, or electoral college for a more detailed answer.'
+    ].join('\n');
+  }
+
+  return `${answer}\nFOLLOWUPS:${JSON.stringify(buildLocalFollowups(prompt))}`;
+}
+
+function buildLocalModelResponse(messages, jsonMode) {
+  if (jsonMode) {
+    const userPrompt = String(messages?.[0]?.content || '');
+    const categoryMatch = userPrompt.match(/Category:\s*([^\.\n]+)/i);
+    const category = categoryMatch ? categoryMatch[1].trim() : 'General';
+    return JSON.stringify(getFallbackQuizQuestion(category));
+  }
+  const userText = String(messages?.[messages.length - 1]?.content || '');
+  return buildLocalChatResponse(userText);
+}
 
 function switchTab(tabId) {
   state.activeTab = tabId;
@@ -1593,15 +1614,9 @@ function resetQuizStart() {
 }
 
 async function callModel(systemPrompt, messages, jsonMode = false) {
-  let api = getApiConfig();
-  if (!api.apiKey && api.provider === 'gemini') {
-    const configured = promptForRuntimeGeminiKey();
-    if (configured) {
-      api = getApiConfig();
-    }
-  }
+  const api = getApiConfig();
   if (!api.apiKey || !api.apiUrl) {
-    throw new Error('API config is missing. Add a valid key in config.js or provide it in the runtime prompt.');
+    return buildLocalModelResponse(messages, jsonMode);
   }
 
   if (api.provider === 'anthropic') {
