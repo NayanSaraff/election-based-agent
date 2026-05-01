@@ -676,6 +676,20 @@ function buildLocalChatResponse(userText) {
       'Vice-President election: members of both Houses of Parliament vote using single transferable vote.',
       'This is different from Lok Sabha elections, where citizens vote directly.'
     ].join('\n');
+  } else if (lower.includes('lok sabha') || lower.includes('parliament')) {
+    answer = [
+      'Lok Sabha elections are direct elections where citizens vote for candidates in their constituency.',
+      'The party or coalition with majority support in Lok Sabha forms the Union Government.',
+      'A majority mark is needed to form government, and then the Prime Minister is appointed.',
+      'The Election Commission of India supervises the full process from schedule to final results.'
+    ].join('\n');
+  } else if (lower.includes('vidhan sabha') || lower.includes('assembly')) {
+    answer = [
+      'Vidhan Sabha elections choose representatives for a state legislative assembly.',
+      'Voters directly elect MLAs from state constituencies.',
+      'The party or coalition with majority in the assembly forms the state government.',
+      'Polling and counting are conducted under Election Commission rules and state election machinery.'
+    ].join('\n');
   } else if (lower.includes('evm') || lower.includes('vvpat')) {
     answer = [
       'EVM records the vote electronically at the polling station.',
@@ -690,12 +704,25 @@ function buildLocalChatResponse(userText) {
       'Keep identity and address proof ready during registration.',
       'After verification, your name is added to the roll and you can vote.'
     ].join('\n');
+  } else if (lower.includes('law') || lower.includes('constitution') || lower.includes('article')) {
+    answer = [
+      'Indian election governance is anchored in the Constitution, especially Article 324 for the Election Commission of India.',
+      'Representation of the People Acts, 1950 and 1951, govern rolls, qualifications, conduct of elections, and disputes.',
+      'The Conduct of Elections Rules, 1961 define procedural details for nominations, polling, and counting.',
+      'The Model Code of Conduct sets campaign behavior standards once elections are announced.'
+    ].join('\n');
+  } else if (lower.includes('count') || lower.includes('result')) {
+    answer = [
+      'Counting starts on the official date announced by the Election Commission of India.',
+      'Postal ballots are processed first, then EVM round-wise counting is carried out constituency by constituency.',
+      'Round updates are published as trends, and final winners are declared after validation.',
+      'Official confirmed results should be taken from Election Commission result channels.'
+    ].join('\n');
   } else {
     answer = [
-      'Free mode is active, so this answer is generated from built-in civic content.',
       'Indian election flow in short: electoral roll preparation, nominations, scrutiny, campaign period, polling, counting, and final declaration.',
       'Key institutions include the Election Commission of India, returning officers, and polling staff.',
-      'Ask a specific topic like Lok Sabha, Vidhan Sabha, voter registration, EVM/VVPAT, or electoral college for a more detailed answer.'
+      'Ask a specific topic like Lok Sabha, Vidhan Sabha, election laws, voter registration, EVM/VVPAT, or electoral college for a more detailed answer.'
     ].join('\n');
   }
 
