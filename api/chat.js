@@ -3,7 +3,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 function normalizeMessages(messages) {
   if (!Array.isArray(messages)) return [];
 
-  return messages
+  const mapped = messages
     .filter((message) => message && typeof message.content === 'string')
     .map((message) => ({
       role: message.role === 'assistant' ? 'model' : 'user',
@@ -11,6 +11,24 @@ function normalizeMessages(messages) {
     }))
     .filter((message) => message.parts[0].text.trim().length > 0)
     .slice(-20);
+
+  // Gemini requires strictly alternating user/model turns.
+  // Merge consecutive same-role messages by joining their text.
+  const deduped = [];
+  for (const msg of mapped) {
+    if (deduped.length > 0 && deduped[deduped.length - 1].role === msg.role) {
+      deduped[deduped.length - 1].parts[0].text += '\n' + msg.parts[0].text;
+    } else {
+      deduped.push(msg);
+    }
+  }
+
+  // Conversation must start with a user turn
+  while (deduped.length > 0 && deduped[0].role !== 'user') {
+    deduped.shift();
+  }
+
+  return deduped;
 }
 
 module.exports = async (req, res) => {
@@ -41,12 +59,13 @@ module.exports = async (req, res) => {
     return res.status(400).json({ error: 'messages must contain at least one item.' });
   }
 
-const endpoint = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
     contents,
     generationConfig: {
       temperature: jsonMode ? 0.2 : 0.7,
       maxOutputTokens: jsonMode ? 800 : 1000,
+      responseMimeType: jsonMode ? 'application/json' : 'text/plain',
     },
   };
 
@@ -62,19 +81,7 @@ const endpoint = `https://generativelanguage.googleapis.com/v1/models/${encodeUR
     });
 
     if (!upstream.ok) {
-      let errorBody = '';
-      try {
-        const errorText = await upstream.text();
-        errorBody = errorText;
-        try {
-          const errorJson = JSON.parse(errorText);
-          console.error(`[GEMINI ${upstream.status}]`, JSON.stringify(errorJson, null, 2));
-        } catch {
-          console.error(`[GEMINI ${upstream.status}]`, errorText);
-        }
-      } catch {
-        console.error(`[GEMINI ${upstream.status}] Could not read error body`);
-      }
+      const errorBody = await upstream.text().catch(() => '');
       const status = upstream.status === 429 ? 429 : 502;
       return res.status(status).json({
         error: `Gemini API error ${upstream.status}`,
