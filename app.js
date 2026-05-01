@@ -1048,30 +1048,12 @@ async function loadNewsTicker() {
 }
 
 async function generateTickerWithGemini() {
-  const api = getApiConfig();
-  if (!api || api.provider !== 'gemini' || !api.apiKey && !api.key) {
-    throw new Error('Gemini not configured');
-  }
-  const key = api.apiKey || api.key;
   const prompt = `Default Gemini prompt: fetch only Indian election news. Provide 6 concise, recent-style India election headlines only as a JSON array. Every headline must be strictly about Indian elections, such as polling, counting, results, nominations, candidates, voter turnout, EVMs, VVPAT, the ECI, Lok Sabha, Rajya Sabha, Vidhan Sabha, or the President/Vice-President electoral college. Do not include any non-election topic. Each item should be an object with keys \"title\" and \"url\". If you cannot provide a real URL, use \"#\". Example: [{"title":"...","url":"..."}, ...]`;
-
-  const url = new URL(api.apiUrl);
-  url.searchParams.append('key', key);
-
-  const res = await fetch(url.toString(), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Gemini ticker error ${res.status}: ${body}`);
-  }
-  const data = await res.json();
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const raw = await callModel(
+    'You generate concise India election headlines as JSON only.',
+    [{ role: 'user', content: prompt }],
+    false
+  );
   // Try to parse JSON out of raw text. Accept JSON embedded inside code fences or text.
   let items = [];
   const tryParseJsonFromString = (text) => {
@@ -1641,59 +1623,35 @@ function resetQuizStart() {
 }
 
 async function callModel(systemPrompt, messages, jsonMode = false) {
-  const api = getApiConfig();
-  if (!api.apiKey || !api.apiUrl) {
-    return buildLocalModelResponse(messages, jsonMode);
-  }
+  const payload = {
+    systemPrompt,
+    messages,
+    jsonMode,
+  };
 
-  if (api.provider === 'anthropic') {
-    const response = await fetch(api.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': api.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: api.model,
-        max_tokens: jsonMode ? 800 : 1000,
-        system: systemPrompt,
-        messages,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`Anthropic API error ${response.status}`);
-    }
-    const data = await response.json();
-    return data.content?.[0]?.text || '';
-  }
-
-  const url = new URL(api.apiUrl);
-  url.searchParams.set('key', api.apiKey);
-  const response = await fetch(url.toString(), {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: messages.map((message) => ({
-        role: message.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: message.content }],
-      })),
-      generationConfig: {
-        temperature: jsonMode ? 0.2 : 0.7,
-        maxOutputTokens: jsonMode ? 800 : 1000,
-        responseMimeType: jsonMode ? 'application/json' : 'text/plain',
-      },
-    }),
+    body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    if (response.status === 429) {
-      setGeminiCooldown();
-    }
-    throw new Error(`Gemini API error ${response.status}`);
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
   }
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  if (!response.ok) {
+    const message = data?.error || `Request failed with status ${response.status}`;
+    throw new Error(message);
+  }
+
+  if (!data || typeof data.text !== 'string') {
+    throw new Error('Invalid response from /api/chat');
+  }
+
+  return data.text;
 }
 
 async function sendChat() {
@@ -1704,6 +1662,10 @@ async function sendChat() {
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
   if (!text) {
+    return;
+  }
+  if (text.length > 2000) {
+    appendMessage('assistant', formatBubble('Please keep your message under 2000 characters.'));
     return;
   }
 

@@ -70,31 +70,25 @@ function filterStreamingElectionHeadlines(items) {
 
 // Generate one fresh headline from Gemini
 async function fetchSingleHeadlineFromGemini() {
-  const api = getApiConfig();
-  if (!api || api.provider !== 'gemini' || !api.apiKey) {
-    throw new Error('Gemini not configured');
-  }
-  
-  const key = api.apiKey;
   const prompt = `Default Gemini prompt: fetch only Indian election news. Generate ONE fresh, realistic India election headline ONLY. It must be strictly about Indian elections, such as polling, results, candidates, nominations, election dates, voter turnout, EVMs, VVPAT, the ECI, or the electoral college. Do not include any non-election topic. Date: 1 May 2026. Max 100 chars. Respond ONLY with headline text, nothing else.`;
-  const url = new URL(api.apiUrl);
-  url.searchParams.append('key', key);
 
-  const res = await fetch(url.toString(), {
+  const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 150 },
+      systemPrompt: 'You generate concise Indian election headlines only.',
+      messages: [{ role: 'user', content: prompt }],
+      jsonMode: false,
     }),
   });
   
   if (!res.ok) {
-    throw new Error(`Gemini error ${res.status}`);
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(payload.error || `Chat API error ${res.status}`);
   }
   
   const data = await res.json();
-  const headline = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  const headline = String(data.text || '').split('\n')[0].trim();
   
   if (!headline || !isStreamingElectionHeadline(headline)) throw new Error('No election headline generated');
   
