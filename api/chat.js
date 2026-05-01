@@ -47,7 +47,6 @@ const endpoint = `https://generativelanguage.googleapis.com/v1/models/${encodeUR
     generationConfig: {
       temperature: jsonMode ? 0.2 : 0.7,
       maxOutputTokens: jsonMode ? 800 : 1000,
-      responseMimeType: jsonMode ? 'application/json' : 'text/plain',
     },
   };
 
@@ -63,7 +62,19 @@ const endpoint = `https://generativelanguage.googleapis.com/v1/models/${encodeUR
     });
 
     if (!upstream.ok) {
-      const errorBody = await upstream.text().catch(() => '');
+      let errorBody = '';
+      try {
+        const errorText = await upstream.text();
+        errorBody = errorText;
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error(`[GEMINI ${upstream.status}]`, JSON.stringify(errorJson, null, 2));
+        } catch {
+          console.error(`[GEMINI ${upstream.status}]`, errorText);
+        }
+      } catch {
+        console.error(`[GEMINI ${upstream.status}] Could not read error body`);
+      }
       const status = upstream.status === 429 ? 429 : 502;
       return res.status(status).json({
         error: `Gemini API error ${upstream.status}`,
