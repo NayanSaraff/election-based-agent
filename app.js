@@ -1,6 +1,9 @@
 ﻿'use strict';
 
 const CONFIG = window.ELECTIQ_CONFIG || {};
+const RUNTIME_CONFIG_KEY = 'electiq_runtime_config';
+const DEFAULT_GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent';
+const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
 
 const GEMINI_COOLDOWN_KEY = 'electiq_gemini_cooldown_until';
 const GEMINI_COOLDOWN_MS = 60 * 60 * 1000;
@@ -73,20 +76,80 @@ function filterElectionHeadlines(items) {
     .filter((item) => item.title && isElectionHeadline(item.title));
 }
 
+function getRuntimeConfig() {
+  try {
+    const raw = localStorage.getItem(RUNTIME_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function setRuntimeGeminiKey(apiKey) {
+  if (!apiKey) return;
+  const runtime = getRuntimeConfig();
+  const next = {
+    ...runtime,
+    provider: 'gemini',
+    gemini: {
+      ...(runtime.gemini || {}),
+      apiKey,
+      apiUrl: (runtime.gemini && runtime.gemini.apiUrl) || (CONFIG.gemini && CONFIG.gemini.apiUrl) || DEFAULT_GEMINI_API_URL,
+      model: (runtime.gemini && runtime.gemini.model) || (CONFIG.gemini && CONFIG.gemini.model) || DEFAULT_GEMINI_MODEL,
+    },
+  };
+  try {
+    localStorage.setItem(RUNTIME_CONFIG_KEY, JSON.stringify(next));
+  } catch (error) {
+    // Ignore storage errors.
+  }
+}
+
+function buildEffectiveConfig() {
+  const runtime = getRuntimeConfig();
+  return {
+    provider: runtime.provider || CONFIG.provider || 'gemini',
+    anthropic: { ...(CONFIG.anthropic || {}), ...(runtime.anthropic || {}) },
+    gemini: {
+      apiUrl: DEFAULT_GEMINI_API_URL,
+      model: DEFAULT_GEMINI_MODEL,
+      ...(CONFIG.gemini || {}),
+      ...(runtime.gemini || {}),
+    },
+    newsapi: { ...(CONFIG.newsapi || {}) },
+    newsdataio: { ...(CONFIG.newsdataio || {}) },
+  };
+}
+
+function promptForRuntimeGeminiKey() {
+  const currentProvider = (CONFIG.provider || 'gemini').toLowerCase();
+  if (currentProvider !== 'gemini') return false;
+  if (typeof window === 'undefined' || typeof window.prompt !== 'function') return false;
+
+  const input = window.prompt('Gemini API key is missing on this deployment. Paste your Gemini key to continue. The key is stored only in this browser.');
+  const key = String(input || '').trim();
+  if (!key) return false;
+
+  setRuntimeGeminiKey(key);
+  return true;
+}
+
 function getApiConfig() {
-  if (CONFIG.provider === 'anthropic' && CONFIG.anthropic?.apiKey) {
-    return { provider: 'anthropic', ...CONFIG.anthropic };
+  const effective = buildEffectiveConfig();
+
+  if (effective.provider === 'anthropic' && effective.anthropic?.apiKey) {
+    return { provider: 'anthropic', ...effective.anthropic };
   }
-  if (CONFIG.provider === 'gemini' && CONFIG.gemini?.apiKey) {
-    return { provider: 'gemini', ...CONFIG.gemini };
+  if (effective.provider === 'gemini' && effective.gemini?.apiKey) {
+    return { provider: 'gemini', ...effective.gemini };
   }
-  if (CONFIG.gemini?.apiKey) {
-    return { provider: 'gemini', ...CONFIG.gemini };
+  if (effective.gemini?.apiKey) {
+    return { provider: 'gemini', ...effective.gemini };
   }
-  if (CONFIG.anthropic?.apiKey) {
-    return { provider: 'anthropic', ...CONFIG.anthropic };
+  if (effective.anthropic?.apiKey) {
+    return { provider: 'anthropic', ...effective.anthropic };
   }
-  return { provider: CONFIG.provider || 'gemini', apiUrl: '', apiKey: '', model: '' };
+  return { provider: effective.provider || 'gemini', apiUrl: '', apiKey: '', model: '' };
 }
 
 const CHAT_SYSTEM = `You are ElectIQ India, a friendly, neutral civic education assistant.
@@ -1530,9 +1593,15 @@ function resetQuizStart() {
 }
 
 async function callModel(systemPrompt, messages, jsonMode = false) {
-  const api = getApiConfig();
+  let api = getApiConfig();
+  if (!api.apiKey && api.provider === 'gemini') {
+    const configured = promptForRuntimeGeminiKey();
+    if (configured) {
+      api = getApiConfig();
+    }
+  }
   if (!api.apiKey || !api.apiUrl) {
-    throw new Error('API config is missing. Add a valid key in config.js.');
+    throw new Error('API config is missing. Add a valid key in config.js or provide it in the runtime prompt.');
   }
 
   if (api.provider === 'anthropic') {
