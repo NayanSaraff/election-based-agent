@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ElectIQ India | Election Guide</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <script src="config.js"></script>
+  <script src="news-ticker-streaming.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="ElectIQ India home">
+        <img src="icon.svg" class="site-logo" alt="ElectIQ India logo">
+        <div class="brand-name">Elect<em>IQ</em> India</div>
+      </a>
+
+      <nav class="tab-nav" aria-label="Primary">
+        <button class="tab-btn active" data-tab="assistant">Assistant</button>
+        <button class="tab-btn" data-tab="timeline">Election Cycle</button>
+        <button class="tab-btn" data-tab="tracker">Current Elections</button>
+        <button class="tab-btn" data-tab="laws">Laws & Dates</button>
+        <button class="tab-btn" data-tab="quiz">Quiz</button>
+      </nav>
+
+      <div class="topbar-right">
+        <div class="badge-live">
+          <span class="live-dot"></span>
+          Snapshot: 1 May 2026
+        </div>
+      </div>
+    </header>
+
+    <section class="news-marquee" aria-label="Latest election news">
+      <div class="news-marquee-label">Latest Election News</div>
+      <div class="news-marquee-track-wrap">
+        <div class="news-marquee-track" id="newsMarqueeTrack">
+          <span class="news-marquee-item">Loading latest India election headlines...</span>
+        </div>
+      </div>
+    </section>
+
+    <main class="content-area">
+      <section class="tab-panel active" id="tab-assistant">
+        <div class="chat-layout">
+          <aside class="topics-sidebar">
+            <div class="sidebar-head">
+              <h3>India Election Topics</h3>
+            </div>
+            <div class="sidebar-scroll" id="topicsSidebar"></div>
+          </aside>
+
+          <div class="chat-main">
+            <div class="messages-wrap" id="messages"></div>
+
+            <div class="input-bar">
+              <div class="input-inner">
+                <textarea id="chatInput" rows="1" placeholder="Ask about Lok Sabha polls, EVMs, voter ID, the President's electoral college, current 2026 state polls, or election laws..."></textarea>
+                <button class="send-btn" id="sendBtn" aria-label="Send message">➜</button>
+              </div>
+              <div class="input-hint">Enter to send · Shift+Enter for a new line</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-timeline">
+        <div class="timeline-layout">
+          <div class="timeline-header">
+            <h2>How Indian Elections Move</h2>
+            <p>From electoral rolls to counting day, this is a simplified guide to how major Indian elections are normally administered by the Election Commission of India.</p>
+          </div>
+          <div class="tl-progress-bar" id="tlBar"></div>
+          <div class="stages-grid" id="stagesGrid"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-tracker">
+        <div class="info-layout">
+          <div class="info-hero">
+            <h2>Current Elections In India</h2>
+            <p>Updated for a <strong>1 May 2026</strong> snapshot. These cards are meant as a reference inside the app, so live outcomes may change after counting day.</p>
+          </div>
+
+          <div class="tracker-banner" id="trackerBanner"></div>
+          <div class="tracker-grid" id="trackerGrid"></div>
+          <div class="tracker-detail" id="trackerDetail"></div>
+
+          <div class="info-split" id="trackerMetaSection">
+            <div class="info-card-block">
+              <h3>Election Day Dates</h3>
+              <div class="date-list" id="dateList"></div>
+            </div>
+            <div class="info-card-block">
+              <h3>Source Notes</h3>
+              <div class="source-list" id="sourceList"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-laws">
+        <div class="info-layout">
+          <div class="info-hero">
+            <h2>Indian Election Laws</h2>
+            <p>Core constitutional provisions, major statutes, and the indirect electoral college rules for choosing the President and Vice-President of India.</p>
+          </div>
+
+          <div class="law-callout" id="electoralCollegeCard"></div>
+          <div class="laws-grid" id="lawsGrid"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-quiz">
+        <div class="quiz-layout">
+          <div class="quiz-header">
+            <h2>India Elections Quiz</h2>
+            <p>Practice the basics: Parliament, Assemblies, voter registration, constitutional articles, EVMs, counting, and the President's electoral college.</p>
+          </div>
+
+          <div class="category-bar" id="catBar"></div>
+
+          <div class="quiz-start" id="quizStart">
+            <h3>Test Your Election Knowledge</h3>
+            <p>Choose a topic and generate a fresh multiple-choice question.</p>
+            <button class="start-quiz-btn">Start Quiz</button>
+          </div>
+
+          <div class="quiz-card hidden" id="quizCard"></div>
+          <div class="scoreboard hidden" id="scoreboard"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
