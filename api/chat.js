@@ -1,35 +1,4 @@
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-
-function normalizeMessages(messages) {
-  if (!Array.isArray(messages)) return [];
-
-  const mapped = messages
-    .filter((message) => message && typeof message.content === 'string')
-    .map((message) => ({
-      role: message.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: String(message.content).slice(0, 8000) }],
-    }))
-    .filter((message) => message.parts[0].text.trim().length > 0)
-    .slice(-20);
-
-  // Gemini requires strictly alternating user/model turns.
-  // Merge consecutive same-role messages by joining their text.
-  const deduped = [];
-  for (const msg of mapped) {
-    if (deduped.length > 0 && deduped[deduped.length - 1].role === msg.role) {
-      deduped[deduped.length - 1].parts[0].text += '\n' + msg.parts[0].text;
-    } else {
-      deduped.push(msg);
-    }
-  }
-
-  // Conversation must start with a user turn
-  while (deduped.length > 0 && deduped[0].role !== 'user') {
-    deduped.shift();
-  }
-
-  return deduped;
-}
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
@@ -37,9 +6,9 @@ module.exports = async (req, res) => {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY.' });
+    return res.status(500).json({ error: 'Server is missing GROQ_API_KEY.' });
   }
 
   let body = req.body;
@@ -53,30 +22,29 @@ module.exports = async (req, res) => {
 
   const systemPrompt = String(body?.systemPrompt || '').trim();
   const jsonMode = Boolean(body?.jsonMode);
-  const contents = normalizeMessages(body?.messages);
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
 
-  if (!contents.length) {
+  if (!messages.length) {
     return res.status(400).json({ error: 'messages must contain at least one item.' });
   }
 
-const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const payload = {
-    contents,
-    generationConfig: {
-      temperature: jsonMode ? 0.2 : 0.7,
-      maxOutputTokens: jsonMode ? 800 : 1000,
-      responseMimeType: jsonMode ? 'application/json' : 'text/plain',
-    },
+    model: GROQ_MODEL,
+    messages: [
+      ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
+      ...messages,
+    ],
+    temperature: jsonMode ? 0.2 : 0.7,
+    max_tokens: jsonMode ? 800 : 1000,
   };
 
-  if (systemPrompt) {
-    payload.systemInstruction = { parts: [{ text: systemPrompt }] };
-  }
-
   try {
-    const upstream = await fetch(endpoint, {
+    const upstream = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
       body: JSON.stringify(payload),
     });
 
@@ -84,16 +52,16 @@ const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${enco
       const errorBody = await upstream.text().catch(() => '');
       const status = upstream.status === 429 ? 429 : 502;
       return res.status(status).json({
-        error: `Gemini API error ${upstream.status}`,
+        error: `Groq API error ${upstream.status}`,
         details: errorBody.slice(0, 400),
       });
     }
 
     const data = await upstream.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const text = data?.choices?.[0]?.message?.content;
 
     if (!text || typeof text !== 'string') {
-      return res.status(502).json({ error: 'Gemini returned an empty response.' });
+      return res.status(502).json({ error: 'Groq returned an empty response.' });
     }
 
     return res.status(200).json({ text });
