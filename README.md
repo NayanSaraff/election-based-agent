@@ -2,12 +2,28 @@
 
 ElectIQ (ElectIQ India) is a compact, client-first web application that provides an election-focused reference, an in-page AI assistant, and a continuously streaming election-news ticker. The project is designed for quick deployment as a static site and for extensible, privacy-minded local usage.
 
+## Project Structure
+├── api/              # Vercel serverless functions
+│   ├── chat.js       # Groq AI chat endpoint
+│   ├── eci-news.js   # Indian election RSS aggregator
+│   ├── news.js       # NewsData.io proxy
+│   ├── newsapi.js    # NewsAPI proxy
+│   ├── results.js    # ECI live results fetcher
+│   └── rss.js        # RSS feed proxy
+├── tests/            # Unit tests
+├── app.js            # Main frontend logic
+├── index.html        # App shell
+├── style.css         # Styles
+├── icon.svg          # App icon
+├── package.json      # Node config + test scripts
+├── vercel.json       # Vercel routing config
+├── config.example.js # Example config for local dev
+└── SETUP.md          # Local development guide
+
 What this repo contains (short):
 - `index.html` — The single-page app shell (UI, chat, ticker, panels).
 - `app.js` — Application logic: chat UI, conversation rendering, and UI glue.
-- `news-ticker-streaming.js` — Election-only streaming news generator and marquee renderer.
 - `style.css` — Visual styles, responsive layout, and animations.
-- `config.js` — Local configuration for API keys and provider selection.
 - `icon.svg` — Project brand icon used as favicon and header logo.
 
 Why ElectIQ exists

@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';">
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com https://www.gstatic.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self';">
   <title>ElectIQ India | Election Guide</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,10 @@
     gtag('js', new Date());
     gtag('config', 'G-BEJKCJ7YLE');
   </script>
-  <script src="config.js"></script>
+  <script>
+    // config.js is optional — only exists in local dev
+    window.ELECTIQ_CONFIG = window.ELECTIQ_CONFIG || {};
+  </script>
   <script src="news-ticker-streaming.js"></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';

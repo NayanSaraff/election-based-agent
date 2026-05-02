@@ -106,13 +106,13 @@ async function saveChatToFirestore(userMsg, aiMsg) {
 }
 
 const ELECTION_HEADLINE_KEYWORDS = [
-  'election', 'elections', 'poll', 'polls', 'polling', 'counting', 'results', 'result',
-  'candidate', 'candidates', 'nomination', 'nominations', 'campaign', 'campaigning',
-  'manifesto', 'voter', 'voting', 'electoral college', 'lok sabha', 'rajya sabha',
-  'vidhan sabha', 'assembly election', 'presidential election', 'vice presidential election',
-  'eci', 'evm', 'vvpat', 'bypoll', 'by-election', 'election commission', 'model code', 'mcc',
-  'constituency', 'seat', 'seats', 'alliance', 'bjp', 'congress', 'aap', 'tmc', 'sp', 'bsp',
-  'nda', 'india bloc', 'turnout', 'booth', 'polling station', 'nomination',
+  'election', 'poll', 'voting', 'evm', 'eci', 'constituency',
+  'candidate', 'lok sabha', 'rajya sabha', 'vidhan sabha',
+  'bypoll', 'counting', 'results', 'manifesto', 'alliance',
+  'bjp', 'congress', 'aap', 'tmc', 'nda', 'india bloc',
+  'voter', 'turnout', 'booth', 'polling', 'nomination',
+  'electoral', 'ballot', 'seats', 'assembly', 'parliament',
+  'minister', 'modi', 'rahul', 'opposition', 'ruling party',
 ];
 
 function isElectionHeadline(title) {
@@ -127,6 +127,12 @@ function filterElectionHeadlines(items) {
       url: item?.url || '#',
     }))
     .filter((item) => item.title && isElectionHeadline(item.title));
+}
+
+function decodeHtml(html) {
+  const txt = document.createElement('textarea');
+  txt.innerHTML = html;
+  return txt.value;
 }
 
 function getApiConfig() {
@@ -830,7 +836,7 @@ const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].repla
 
       const title = document.createElement('span');
       // Use textContent to avoid injecting tags or broken JSON
-      title.textContent = (item.title || '').replace(/[\n\r]+/g, ' ').trim();
+      title.textContent = decodeHtml((item.title || '').replace(/[\n\r]+/g, ' ').trim());
 
       a.appendChild(dot);
       a.appendChild(title);

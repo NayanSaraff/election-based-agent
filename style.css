@@ -72,6 +72,45 @@
   --text-3:      #94a3b8;
 }
 
+[data-theme="light"] .topbar {
+  background: rgba(248, 250, 252, 0.92);
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .brand-name {
+  color: var(--text-1);
+}
+
+[data-theme="light"] .tab-nav {
+  background: #e2e8f0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .tab-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .tab-btn:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: #0f172a;
+}
+
+[data-theme="light"] .tab-btn.active {
+  color: #ffffff;
+  background: var(--teal);
+}
+
+[data-theme="light"] .theme-toggle,
+[data-theme="light"] .nav-hamburger {
+  color: var(--text-1);
+}
+
+[data-theme="light"] .badge-live {
+  background: rgba(45, 212, 191, 0.08);
+  border-color: rgba(45, 212, 191, 0.2);
+  color: var(--teal-dim);
+}
+
 html, body {
   height: 100%;
   font-family: 'Inter', 'Noto Sans Devanagari', sans-serif;
