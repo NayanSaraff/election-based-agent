@@ -1205,6 +1205,10 @@ function parseResponse(raw) {
 
 function appendMessage(role, html, rawText = '') {
   const wrap = document.getElementById('messages');
+  const emptyState = document.getElementById('chatEmptyState');
+  if (emptyState) {
+    emptyState.remove();
+  }
   const row = document.createElement('div');
   row.className = `msg-row ${role === 'assistant' ? '' : 'user'}`.trim();
   if (rawText) {
@@ -1294,28 +1298,10 @@ function hideTyping() {
 function renderWelcome() {
   const wrap = document.getElementById('messages');
   wrap.innerHTML = `
-    <div class="welcome-hero">
-      <span class="welcome-emoji">IND</span>
-      <h2>ElectIQ India</h2>
-      <p>Ask about Lok Sabha elections, Vidhan Sabha contests, election laws, voter registration, EVMs, the President's electoral college, or the 2026 state election schedule. The assistant now teaches with step flows and auto diagrams.</p>
-      <div class="starter-grid">
-        <div class="starter-card" data-ask="How is the President of India elected through the electoral college?">
-          <strong>Electoral College</strong>
-          President and Vice-President rules
-        </div>
-        <div class="starter-card" data-ask="Which elections are ongoing in India as of 1 May 2026?">
-          <strong>Current Elections</strong>
-          2026 live snapshot
-        </div>
-        <div class="starter-card" data-ask="What are the most important Indian election laws I should know?">
-          <strong>Election Laws</strong>
-          Constitution, RPA, rules
-        </div>
-        <div class="starter-card" data-ask="Walk me through election day in India step by step.">
-          <strong>Election Day</strong>
-          Polling station to counting
-        </div>
-      </div>
+    <div class="chat-empty-state" id="chatEmptyState">
+      <div class="empty-icon">🗳️</div>
+      <h3>Ask me anything about Indian Elections</h3>
+      <p>Lok Sabha, EVMs, voter registration, election laws, current polls...</p>
     </div>
   `;
 }

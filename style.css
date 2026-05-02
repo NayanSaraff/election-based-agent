@@ -36,6 +36,8 @@ html {
   --text-1:      #f1f5f9;
   --text-2:      #94a3b8;
   --text-3:      #64748b;
+  --text:        var(--text-1);
+  --muted:       var(--text-2);
 
   /* Stage colors */
   --s1: #f87171;
@@ -552,6 +554,28 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
+}
+
+.chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--muted);
+  gap: 0.5rem;
+  padding: 2rem;
+}
+
+.chat-empty-state .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.chat-empty-state h3 {
+  color: var(--text);
+  font-size: 1.2rem;
 }
 
 /* Welcome card */
