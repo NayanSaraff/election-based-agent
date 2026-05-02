@@ -37,7 +37,7 @@ async function loadRemoteConfig() {
 }
 
 const GEMINI_COOLDOWN_KEY = 'electiq_gemini_cooldown_until';
-const GEMINI_COOLDOWN_MS = 60 * 60 * 1000;
+const GEMINI_COOLDOWN_MS = 5 * 60 * 1000;
 
 function getGeminiCooldownUntil() {
   try {
@@ -61,7 +61,7 @@ function isGeminiCooldownActive() {
 
 function isGeminiRateLimitError(error) {
   const message = String(error?.message || '');
-  return message.includes('Gemini API error 429') || message.includes('Gemini error 429') || message.includes('429');
+  return message === 'Gemini API error 429' || message.endsWith(' 429');
 }
 
 const ELECTION_HEADLINE_KEYWORDS = [
@@ -177,7 +177,6 @@ async function fetchNewsDataIoHeadlines() {
   url.searchParams.append('country', 'in');
   url.searchParams.append('language', 'en');
   url.searchParams.append('sort', 'latest');
-  url.searchParams.append('limit', '10');
   url.searchParams.append('apikey', config.apiKey);
 
   const res = await fetch(url.toString(), { cache: 'no-store' });
@@ -198,14 +197,7 @@ async function fetchNewsApiHeadlines() {
   if (!config?.apiKey || !config?.baseUrl) {
     throw new Error('NewsAPI not configured');
   }
-  const url = new URL(config.baseUrl);
-  url.searchParams.append('q', 'India election OR Assembly OR election commission');
-  url.searchParams.append('language', 'en');
-  url.searchParams.append('sortBy', 'publishedAt');
-  url.searchParams.append('pageSize', '10');
-  url.searchParams.append('apiKey', config.apiKey);
-
-  const res = await fetch(url.toString(), { cache: 'no-store' });
+  const res = await fetch('/api/newsapi', { cache: 'no-store' });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`NewsAPI error ${res.status}: ${body}`);
@@ -857,7 +849,7 @@ function parseNewsRss(xmlText) {
 }
 
 async function fetchTickerFeed(feedUrl) {
-  const proxied = `${NEWS_TICKER_CONFIG.proxyBase}${encodeURIComponent(feedUrl)}`;
+  const proxied = `/api/rss?url=${encodeURIComponent(feedUrl)}`;
   const response = await fetch(proxied, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Feed request failed with ${response.status}`);

@@ -6,6 +6,14 @@
       "dest": "/api/config.js"
     },
     {
+      "src": "/api/newsapi",
+      "dest": "/api/newsapi.js"
+    },
+    {
+      "src": "/api/rss",
+      "dest": "/api/rss.js"
+    },
+    {
       "src": "/api/chat",
       "dest": "/api/chat.js"
     },
