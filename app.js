@@ -321,6 +321,9 @@ const state = {
   },
 };
 
+let trackerLoaded = false;
+let lawsLoaded = false;
+
 const TOPIC_GROUPS = [
   {
     label: 'Basics',
@@ -756,6 +759,44 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabId}`);
   });
+  onTabChange(tabId);
+}
+
+function renderTopicsSidebar() {
+  renderTopics();
+}
+
+function renderTrackerContent() {
+  renderTracker();
+  refreshTrackerData(state.tracker.selectedId);
+}
+
+function renderLawsContent() {
+  renderLaws();
+}
+
+function onTabChange(tabId) {
+  if (tabId === 'tracker' && !trackerLoaded) {
+    trackerLoaded = true;
+    renderTrackerContent();
+  }
+  if (tabId === 'laws' && !lawsLoaded) {
+    lawsLoaded = true;
+    renderLawsContent();
+  }
+}
+
+function initializeNonCriticalFeatures() {
+  const run = () => {
+    void safeAsync(measurePerformance('loadNewsTicker', loadNewsTicker))();
+    renderTopicsSidebar();
+  };
+
+  if ('requestIdleCallback' in window) {
+    window.requestIdleCallback(run);
+  } else {
+    setTimeout(run, 100);
+  }
 }
 
 function autoGrow(el) {
@@ -2015,7 +2056,7 @@ async function loadQuestion() {
     state.quiz.total += 1;
     renderQuestion(question);
   } catch (error) {
-    console.warn('Quiz generation failed, using fallback:', error.message);
+    logger.warn('Quiz generation failed, using fallback:', error.message);
     // Use fallback questions when API fails
     const fallback = QUIZ_FALLBACK[state.quiz.category];
     if (fallback && fallback.length > 0) {
@@ -2202,14 +2243,11 @@ async function bootstrapApp() {
   updateSnapshotDate();
 
   renderWelcome();
-  renderTopics();
   renderTimeline();
-  renderTracker();
-  renderLaws();
   renderQuizCategories();
   renderQuizHistory();
   resetQuizStart();
-  void safeAsync(measurePerformance('loadNewsTicker', loadNewsTicker))();
+  initializeNonCriticalFeatures();
   window.setInterval(() => {
     void safeAsync(measurePerformance('loadNewsTicker', loadNewsTicker))();
   }, NEWS_REFRESH_INTERVAL);
@@ -2340,7 +2378,6 @@ async function bootstrapApp() {
     }
   });
 
-  refreshTrackerData(state.tracker.selectedId);
 }
 
 if (document.readyState === 'loading') {

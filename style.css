@@ -3,8 +3,6 @@
    Design: Editorial dark, teal + amber, Fraunces + Sora
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,400&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-
 /* ── Reset & Base ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -33,11 +31,12 @@ html {
   --amber-pale:  rgba(245,158,11,0.12);
 
   /* Text */
-  --text-1:      #f1f5f9;
+  --text-1:      #e2e8f0;
   --text-2:      #94a3b8;
   --text-3:      #64748b;
-  --text:        var(--text-1);
-  --muted:       var(--text-2);
+  --text:        #e2e8f0;
+  --muted:       #94a3b8;
+  --text-secondary: #cbd5e1;
 
   /* Stage colors */
   --s1: #f87171;
@@ -93,7 +92,7 @@ html {
 }
 
 [data-theme="light"] .tab-btn {
-  color: #64748b;
+  color: #334155;
 }
 
 [data-theme="light"] .tab-btn:hover {
@@ -296,7 +295,7 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
 .tab-btn {
   background: none;
   border: none;
-  color: var(--text-3);
+  color: var(--muted);
   font-family: 'Sora', sans-serif;
   font-size: 0.8rem;
   font-weight: 500;
@@ -340,8 +339,8 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
   display: flex;
   align-items: center;
   padding: 0 1rem;
-  background: rgba(245,158,11,0.14);
-  color: var(--amber);
+  background: rgba(11, 17, 32, 0.62);
+  color: var(--text-secondary);
   font-size: 0.76rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -498,7 +497,7 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.2px;
-  color: var(--text-3);
+  color: var(--muted);
 }
 
 .sidebar-scroll {
@@ -774,7 +773,7 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
 .msg-time {
   display: block;
   font-size: 0.7rem;
-  color: var(--text-3);
+  color: var(--muted);
   margin-top: 6px;
 }
 
@@ -1068,7 +1067,7 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
   line-height: 1.5;
 }
 
-#chatInput::placeholder { color: var(--text-3); }
+#chatInput::placeholder { color: #64748b; }
 
 .send-btn {
   width: 38px; height: 38px;
@@ -1093,7 +1092,7 @@ h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
 
 .input-hint {
   font-size: 0.68rem;
-  color: var(--text-3);
+  color: var(--muted);
   text-align: center;
   margin-top: 7px;
   font-family: 'JetBrains Mono', monospace;

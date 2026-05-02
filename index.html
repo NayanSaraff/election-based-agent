@@ -18,17 +18,18 @@
   <meta name="twitter:title" content="ElectIQ India | AI Election Guide">
   <meta name="twitter:description" content="AI-powered Indian election guide with live news, results and quiz.">
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com https://www.gstatic.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self';">
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com https://www.gstatic.com https://region1.google-analytics.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;">
   <title>ElectIQ India | Election Guide</title>
   <link rel="canonical" href="https://election-based-agent-so18.vercel.app">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="preload" href="app.js" as="script">
   <link rel="preload" href="style.css" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap" rel="stylesheet">
+  </noscript>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap"
-    rel="stylesheet">
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-BEJKCJ7YLE"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -40,7 +41,8 @@
     // config.js is optional — only exists in local dev
     window.ELECTIQ_CONFIG = window.ELECTIQ_CONFIG || {};
   </script>
-  <script src="news-ticker-streaming.js"></script>
+  <script src="config.js" defer onerror="this.remove()"></script>
+  <script src="news-ticker-streaming.js" defer></script>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
     import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
@@ -64,7 +66,10 @@
     }
     window.firestoreLib = { collection, addDoc, getDocs, query, orderBy, limit };
   </script>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="style.css">
+  </noscript>
 </head>
 
 <body>
@@ -233,7 +238,7 @@
     </main>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
 </body>
 
 </html>
