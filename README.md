@@ -1,5 +1,10 @@
 # 🗳️ ElectIQ India — Election Guide (ElectIQ)
 
+![Vercel](https://img.shields.io/badge/Deployed-Vercel-black)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Google Services](https://img.shields.io/badge/Google-Firebase%20%7C%20Analytics%20%7C%20Translate%20%7C%20NLP-blue)
+![AI](https://img.shields.io/badge/AI-Groq%20Llama%203.3-orange)
+
 ElectIQ (ElectIQ India) is a compact, client-first web application that provides an election-focused reference, an in-page AI assistant, and a continuously streaming election-news ticker. The project is designed for quick deployment as a static site and for extensible, privacy-minded local usage.
 
 ## Project Structure
@@ -8,7 +13,9 @@ ElectIQ (ElectIQ India) is a compact, client-first web application that provides
 │   ├── eci-news.js   # Indian election RSS aggregator
 │   ├── news.js       # NewsData.io proxy
 │   ├── newsapi.js    # NewsAPI proxy
+│   ├── sentiment.js   # Google Cloud Natural Language API proxy
 │   ├── results.js    # ECI live results fetcher
+│   ├── translate.js   # Google Translate API proxy
 │   └── rss.js        # RSS feed proxy
 ├── tests/            # Unit tests
 ├── app.js            # Main frontend logic

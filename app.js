@@ -49,6 +49,27 @@ const logger = {
   error: (...args) => console.error('[ElectIQ]', ...args),
 };
 
+function safeAsync(fn) {
+  return async (...args) => {
+    try {
+      return await fn(...args);
+    } catch (error) {
+      logger.error(`Error in ${fn.name}:`, error?.message || error);
+      return undefined;
+    }
+  };
+}
+
+function measurePerformance(name, fn) {
+  return async (...args) => {
+    const start = performance.now();
+    const result = await fn(...args);
+    const duration = (performance.now() - start).toFixed(1);
+    logger.info(`${name} completed in ${duration}ms`);
+    return result;
+  };
+}
+
 function getAiCooldownUntil() {
   try {
     return Number(localStorage.getItem(AI_COOLDOWN_KEY) || 0);
@@ -133,6 +154,58 @@ function decodeHtml(html) {
   const txt = document.createElement('textarea');
   txt.innerHTML = html;
   return txt.value;
+}
+
+async function fetchHeadlineSentiment(text) {
+  try {
+    const response = await fetch('/api/sentiment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      return { score: 0, magnitude: 0 };
+    }
+    const data = await response.json();
+    return {
+      score: Number(data?.score || 0),
+      magnitude: Number(data?.magnitude || 0),
+    };
+  } catch (error) {
+    return { score: 0, magnitude: 0 };
+  }
+}
+
+function getSentimentClass(score) {
+  if (score > 0.2) return 'positive';
+  if (score < -0.2) return 'negative';
+  return 'neutral';
+}
+
+async function annotateHeadlineSentiments(items) {
+  const list = Array.isArray(items) ? items : [];
+  const settled = await Promise.allSettled(list.map((item) => fetchHeadlineSentiment(item.title)));
+  return list.map((item, index) => {
+    const sentiment = settled[index]?.status === 'fulfilled' ? settled[index].value : { score: 0, magnitude: 0 };
+    return {
+      ...item,
+      sentimentScore: sentiment.score,
+      sentimentMagnitude: sentiment.magnitude,
+    };
+  });
+}
+
+async function translateText(text, target = 'hi') {
+  const response = await fetch('/api/translate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, target }),
+  });
+  if (!response.ok) {
+    throw new Error(`Translate API error ${response.status}`);
+  }
+  const data = await response.json();
+  return String(data?.translated || '');
 }
 
 function getApiConfig() {
@@ -678,6 +751,7 @@ function switchTab(tabId) {
   trackEvent('tab_changed', { tab_name: tabId });
   document.querySelectorAll('.tab-btn').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabId);
+    button.setAttribute('aria-current', button.dataset.tab === tabId ? 'true' : 'false');
   });
   document.querySelectorAll('.tab-panel').forEach((panel) => {
     panel.classList.toggle('active', panel.id === `tab-${tabId}`);
@@ -829,14 +903,19 @@ const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].repla
       a.href = item.url || '#';
       a.target = '_blank';
       a.rel = 'noreferrer';
+      a.title = item.title || '';
+      a.setAttribute('aria-label', item.title || 'Election headline');
 
       const dot = document.createElement('span');
-      dot.className = 'news-dot';
-      if (item.source) dot.classList.add(`source-${item.source}`);
+      dot.className = `news-dot ${getSentimentClass(Number(item.sentimentScore || 0))}`;
 
       const title = document.createElement('span');
       // Use textContent to avoid injecting tags or broken JSON
       title.textContent = decodeHtml((item.title || '').replace(/[\n\r]+/g, ' ').trim());
+
+      a.addEventListener('click', () => {
+        trackEvent('news_headline_clicked', { headline: item.title || '' });
+      });
 
       a.appendChild(dot);
       a.appendChild(title);
@@ -913,7 +992,8 @@ async function loadNewsTicker() {
   if (cached && cached.length) {
     const filteredCached = filterElectionHeadlines(cached);
     if (filteredCached.length) {
-      renderNewsTickerItems(filteredCached);
+      const cachedWithSentiment = await annotateHeadlineSentiments(filteredCached);
+      renderNewsTickerItems(cachedWithSentiment);
       trackEvent('news_ticker_loaded', { headline_count: filteredCached.length });
       return;
     }
@@ -961,9 +1041,10 @@ async function loadNewsTicker() {
 
     if (deduped.length >= 3) {
       logger.info('Aggregated', deduped.length, 'unique headlines from parallel sources');
-      setTickerCache(deduped);
-      renderNewsTickerItems(deduped);
-      trackEvent('news_ticker_loaded', { headline_count: deduped.length });
+      const annotated = await annotateHeadlineSentiments(deduped);
+      setTickerCache(annotated);
+      renderNewsTickerItems(annotated);
+      trackEvent('news_ticker_loaded', { headline_count: annotated.length });
       return;
     }
   } catch (error) {
@@ -977,8 +1058,9 @@ async function loadNewsTicker() {
       return;
     }
     logger.info('Using fallback static headlines while AI is cooling down');
-    renderNewsTickerItems(NEWS_TICKER_CONFIG.fallback);
-    trackEvent('news_ticker_loaded', { headline_count: NEWS_TICKER_CONFIG.fallback.length });
+    const fallbackWithSentiment = await annotateHeadlineSentiments(NEWS_TICKER_CONFIG.fallback);
+    renderNewsTickerItems(fallbackWithSentiment);
+    trackEvent('news_ticker_loaded', { headline_count: fallbackWithSentiment.length });
     return;
   }
 
@@ -987,9 +1069,10 @@ async function loadNewsTicker() {
     const filteredGenItems = filterElectionHeadlines(genItems);
     if (filteredGenItems && filteredGenItems.length) {
       logger.info('Generated', filteredGenItems.length, 'headlines with AI model');
-      setTickerCache(filteredGenItems);
-      renderNewsTickerItems(filteredGenItems);
-      trackEvent('news_ticker_loaded', { headline_count: filteredGenItems.length });
+      const annotatedGenerated = await annotateHeadlineSentiments(filteredGenItems);
+      setTickerCache(annotatedGenerated);
+      renderNewsTickerItems(annotatedGenerated);
+      trackEvent('news_ticker_loaded', { headline_count: annotatedGenerated.length });
       return;
     }
   } catch (err) {
@@ -1007,8 +1090,9 @@ async function loadNewsTicker() {
 
   // FALLBACK: Static headlines
   logger.info('Using fallback static headlines');
-  renderNewsTickerItems(NEWS_TICKER_CONFIG.fallback);
-  trackEvent('news_ticker_loaded', { headline_count: NEWS_TICKER_CONFIG.fallback.length });
+  const fallbackWithSentiment = await annotateHeadlineSentiments(NEWS_TICKER_CONFIG.fallback);
+  renderNewsTickerItems(fallbackWithSentiment);
+  trackEvent('news_ticker_loaded', { headline_count: fallbackWithSentiment.length });
 }
 
 async function generateTickerWithGemini() {
@@ -1119,10 +1203,13 @@ function parseResponse(raw) {
   return { text, followUps };
 }
 
-function appendMessage(role, html) {
+function appendMessage(role, html, rawText = '') {
   const wrap = document.getElementById('messages');
   const row = document.createElement('div');
   row.className = `msg-row ${role === 'assistant' ? '' : 'user'}`.trim();
+  if (rawText) {
+    row.dataset.rawText = rawText;
+  }
   
   const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const timeHtml = `<span class="msg-time">${time}</span>`;
@@ -1133,7 +1220,9 @@ function appendMessage(role, html) {
       <div class="msg-footer">
         ${timeHtml}
         <button class="copy-btn" aria-label="Copy message" title="Copy to clipboard">📋</button>
+        <button class="translate-btn" aria-label="Translate to Hindi" title="Translate to Hindi">🌐 Translate</button>
       </div>
+      <div class="hindi-translation" hidden></div>
     `;
   } else {
     bubbleContent += timeHtml;
@@ -1160,6 +1249,21 @@ function appendMessage(role, html) {
         }, 2000);
       }).catch(err => console.warn('Copy failed:', err));
     });
+
+    const translateBtn = row.querySelector('.translate-btn');
+    const translationBox = row.querySelector('.hindi-translation');
+    translateBtn.addEventListener('click', async () => {
+      const sourceText = row.dataset.rawText || bubble.innerText.trim();
+      trackEvent('translate_clicked', { language: 'hindi' });
+      translationBox.hidden = false;
+      translationBox.innerHTML = '<em>Translating...</em>';
+      try {
+        const translated = await translateText(sourceText, 'hi');
+        translationBox.innerHTML = `<strong>[हिंदी]</strong> <span lang="hi">${escapeHtml(decodeHtml(translated))}</span>`;
+      } catch (error) {
+        translationBox.innerHTML = '<strong>[हिंदी]</strong> Translation unavailable.';
+      }
+    });
   }
   
   wrap.appendChild(row);
@@ -1173,7 +1277,7 @@ function showTyping() {
   row.className = 'typing-row';
   row.innerHTML = `
     <div class="avatar ai">AI</div>
-    <div class="typing-bubble">
+    <div class="typing-bubble" role="status" aria-live="polite">
       <div class="t-dot"></div>
       <div class="t-dot"></div>
       <div class="t-dot"></div>
@@ -1222,7 +1326,7 @@ function renderTopics() {
     <div class="topic-group">
       <div class="topic-group-label">${group.label}</div>
       ${group.items.map(([prompt, label]) => `
-        <div class="topic-item" data-ask="${escapeHtml(prompt)}">
+        <div class="topic-item" data-ask="${escapeHtml(prompt)}" title="${escapeHtml(label)} — ${escapeHtml(prompt)}">
           <span class="icon">•</span>
           <span>${label}</span>
         </div>
@@ -1483,19 +1587,11 @@ function renderLiveResults(resultsData, electionId) {
   if (!panel) return;
 
   // Check for no active election status
-    if (resultsData && resultsData.status === 'no_active_election') {
-      panel.innerHTML = `<div class="no-results-card">
-        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🗳️</div>
-        <h3>No Active Election</h3>
-        <p>Results will appear here automatically on counting day.</p>
-      </div>`;
-      return;
-    }
   if (resultsData && resultsData.status === 'no_active_election') {
     panel.innerHTML = `<div class="no-results-card">
-      <div style="font-size: 2.5rem; margin-bottom: 1rem;">🗳️</div>
-      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 600;">No Active Election</h3>
-      <p style="margin: 0; color: var(--text-3, #999); font-size: 0.95rem;">Results will appear here automatically on counting day.</p>
+      <div class="no-results-emoji">🗳️</div>
+      <h3>No Active Election</h3>
+      <p>Results will appear here automatically on counting day.</p>
     </div>`;
     return;
   }
@@ -1541,6 +1637,8 @@ function renderLiveResults(resultsData, electionId) {
   }
 
   panel.innerHTML = html;
+  const selectedItem = getTrackerItem(electionId);
+  trackEvent('results_refreshed', { state: selectedItem?.title || electionId || '' });
   
   // Update last updated time
   const lastUpdated = document.getElementById('lastUpdated');
@@ -1841,14 +1939,15 @@ async function sendChat() {
         <span class="follow-up-chip" data-ask="${escapeHtml(question)}">${question}</span>
       `).join('')}</div>`;
     }
-    appendMessage('assistant', html);
+    appendMessage('assistant', html, reply);
     await saveChatToFirestore(text, reply);
   } catch (error) {
     hideTyping();
     const message = isAiRateLimitError(error)
       ? 'The AI is busy right now. Please wait a moment and try again.'
       : error.message;
-    appendMessage('assistant', formatBubble(`I couldn't reach the model right now. ${message}`));
+    const fallbackReply = `I couldn't reach the model right now. ${message}`;
+    appendMessage('assistant', formatBubble(fallbackReply), fallbackReply);
   } finally {
     state.chat.loading = false;
     document.getElementById('sendBtn').disabled = false;
@@ -2043,6 +2142,7 @@ function toggleTheme() {
   localStorage.setItem('electiq_theme', next);
   const btn = document.getElementById('themeToggle');
   if (btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+  trackEvent('theme_toggled', { theme: next });
 }
 
 function updateSnapshotDate() {
@@ -2055,12 +2155,14 @@ function updateSnapshotDate() {
 
 function toggleHamburger() {
   const topbar = document.querySelector('.topbar');
-  topbar.classList.toggle('nav-open');
+  const open = topbar.classList.toggle('nav-open');
+  document.getElementById('navHamburger')?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function closeHamburger() {
   const topbar = document.querySelector('.topbar');
   topbar.classList.remove('nav-open');
+  document.getElementById('navHamburger')?.setAttribute('aria-expanded', 'false');
 }
 
 /** Bootstrap the app after remote config, theme, and dynamic content setup. */
@@ -2078,8 +2180,10 @@ async function bootstrapApp() {
   renderQuizCategories();
   renderQuizHistory();
   resetQuizStart();
-  loadNewsTicker();
-  window.setInterval(loadNewsTicker, NEWS_REFRESH_INTERVAL);
+  void safeAsync(measurePerformance('loadNewsTicker', loadNewsTicker))();
+  window.setInterval(() => {
+    void safeAsync(measurePerformance('loadNewsTicker', loadNewsTicker))();
+  }, NEWS_REFRESH_INTERVAL);
 
   const input = document.getElementById('chatInput');
   input.addEventListener('input', function onInput() {
@@ -2097,6 +2201,20 @@ async function bootstrapApp() {
   document.getElementById('navHamburger').addEventListener('click', toggleHamburger);
   document.getElementById('historyToggleBtn').addEventListener('click', () => {
     document.getElementById('quizHistoryList').classList.toggle('hidden');
+  });
+
+  const tabButtons = Array.from(document.querySelectorAll('.tab-btn'));
+  tabButtons.forEach((button, index) => {
+    button.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        tabButtons[(index + 1) % tabButtons.length].focus();
+      }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        tabButtons[(index - 1 + tabButtons.length) % tabButtons.length].focus();
+      }
+    });
   });
 
   // Handle live results refresh button
@@ -2133,6 +2251,7 @@ async function bootstrapApp() {
 
     const askNode = event.target.closest('[data-ask]');
     if (askNode?.dataset.ask) {
+      trackEvent('topic_clicked', { topic: askNode.dataset.ask });
       closeHamburger();
       askPrompt(askNode.dataset.ask);
       return;

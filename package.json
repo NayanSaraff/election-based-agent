@@ -6,9 +6,12 @@
     "node": "20.x"
   },
   "scripts": {
-    "test": "node tests/test-api-chat.js && node tests/test-api-news.js && node tests/test-frontend-utils.js",
+    "test": "node tests/test-api-chat.js && node tests/test-api-news.js && node tests/test-frontend-utils.js && node tests/test-api-sentiment.js && node tests/test-api-translate.js && node tests/test-integration.js",
     "test:api": "node tests/test-api-chat.js",
     "test:news": "node tests/test-api-news.js",
-    "test:frontend": "node tests/test-frontend-utils.js"
+    "test:frontend": "node tests/test-frontend-utils.js",
+    "test:sentiment": "node tests/test-api-sentiment.js",
+    "test:translate": "node tests/test-api-translate.js",
+    "test:integration": "node tests/test-integration.js"
   }
 }

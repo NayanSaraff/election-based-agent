@@ -40,6 +40,14 @@
       "dest": "/api/eci-news.js"
     },
     {
+      "src": "/api/sentiment",
+      "dest": "/api/sentiment.js"
+    },
+    {
+      "src": "/api/translate",
+      "dest": "/api/translate.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "/$1"
     }

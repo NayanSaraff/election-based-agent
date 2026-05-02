@@ -4,6 +4,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ElectIQ India — AI-powered Indian election guide. Ask questions, track live results, read real-time news, and test your election knowledge.">
+  <meta property="og:title" content="ElectIQ India | AI Election Guide">
+  <meta property="og:description" content="Your AI-powered guide to Indian elections — live news, results, laws, and quiz.">
+  <meta property="og:url" content="https://election-based-agent-so18.vercel.app">
+  <meta property="og:type" content="website">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com https://www.gstatic.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self';">
   <title>ElectIQ India | Election Guide</title>
@@ -52,6 +57,7 @@
 </head>
 
 <body>
+  <a href="#tab-assistant" class="skip-link">Skip to main content</a>
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="ElectIQ India home">
@@ -59,14 +65,14 @@
         <div class="brand-name">Elect<em>IQ</em> India</div>
       </a>
 
-      <button class="nav-hamburger" id="navHamburger" aria-label="Open menu">☰</button>
+      <button class="nav-hamburger" id="navHamburger" aria-label="Open menu" aria-expanded="false">☰</button>
 
       <nav class="tab-nav" aria-label="Primary">
-        <button class="tab-btn active" data-tab="assistant">Assistant</button>
-        <button class="tab-btn" data-tab="timeline">Election Cycle</button>
-        <button class="tab-btn" data-tab="tracker">Current Elections</button>
-        <button class="tab-btn" data-tab="laws">Laws & Dates</button>
-        <button class="tab-btn" data-tab="quiz">Quiz</button>
+        <button class="tab-btn active" data-tab="assistant" aria-current="true">Assistant</button>
+        <button class="tab-btn" data-tab="timeline" aria-current="false">Election Cycle</button>
+        <button class="tab-btn" data-tab="tracker" aria-current="false">Current Elections</button>
+        <button class="tab-btn" data-tab="laws" aria-current="false">Laws & Dates</button>
+        <button class="tab-btn" data-tab="quiz" aria-current="false">Quiz</button>
       </nav>
 
       <div class="topbar-right">
@@ -81,13 +87,13 @@
     <section class="news-marquee" aria-label="Latest election news">
       <div class="news-marquee-label">Latest Election News</div>
       <div class="news-marquee-track-wrap">
-        <div class="news-marquee-track" id="newsMarqueeTrack">
-          <span class="news-marquee-item">Loading latest India election headlines...</span>
+        <div class="news-marquee-track" id="newsMarqueeTrack" aria-live="polite">
+          <span class="news-marquee-item" role="status">Loading latest India election headlines...</span>
         </div>
       </div>
     </section>
 
-    <main class="content-area">
+    <main class="content-area" role="main">
       <section class="tab-panel active" id="tab-assistant">
         <div class="chat-layout">
           <aside class="topics-sidebar">
