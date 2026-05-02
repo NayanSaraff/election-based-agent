@@ -166,20 +166,9 @@ const NEWS_TICKER_CONFIG = {
   ],
 };
 
-// Fetch headlines from NewsData.io (PRIMARY SOURCE - CORS-friendly, real-time news)
+// Fetch headlines from NewsData.io (PRIMARY SOURCE - via /api/news proxy)
 async function fetchNewsDataIoHeadlines() {
-  const config = CONFIG.newsdataio;
-  if (!config?.apiKey || !config?.baseUrl) {
-    throw new Error('NewsData.io not configured');
-  }
-  const url = new URL(config.baseUrl);
-  url.searchParams.append('q', 'India election');
-  url.searchParams.append('country', 'in');
-  url.searchParams.append('language', 'en');
-  url.searchParams.append('sort', 'latest');
-  url.searchParams.append('apikey', config.apiKey);
-
-  const res = await fetch(url.toString(), { cache: 'no-store' });
+  const res = await fetch('/api/news', { cache: 'no-store' });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`NewsData.io error ${res.status}: ${body}`);
@@ -897,13 +886,24 @@ async function loadNewsTicker() {
     }
   }
 
+  // Fetch ECI news in parallel
+  const eciNewsPromise = fetchEciNews();
+
   // PRIMARY: Try NewsData.io first (CORS-friendly, real-time news)
   try {
-    const newsDataItems = await fetchNewsDataIoHeadlines();
-    if (newsDataItems && newsDataItems.length) {
-      console.log('📰 Fetched', newsDataItems.length, 'headlines from NewsData.io');
-      setTickerCache(newsDataItems);
-      renderNewsTickerItems(newsDataItems);
+    const [newsDataItems, eciNews] = await Promise.all([fetchNewsDataIoHeadlines(), eciNewsPromise]);
+    
+    // Merge ECI news with NewsData.io headlines
+    let mergedItems = newsDataItems || [];
+    if (eciNews && eciNews.length) {
+      // Add ECI news items to the beginning (higher priority)
+      mergedItems = [...filterElectionHeadlines(eciNews).slice(0, 3), ...mergedItems];
+    }
+    
+    if (mergedItems && mergedItems.length) {
+      console.log('📰 Fetched', mergedItems.length, 'headlines from NewsData.io + ECI');
+      setTickerCache(mergedItems);
+      renderNewsTickerItems(mergedItems);
       return;
     }
   } catch (error) {
@@ -1090,10 +1090,45 @@ function appendMessage(role, html) {
   const wrap = document.getElementById('messages');
   const row = document.createElement('div');
   row.className = `msg-row ${role === 'assistant' ? '' : 'user'}`.trim();
+  
+  const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const timeHtml = `<span class="msg-time">${time}</span>`;
+  
+  let bubbleContent = html;
+  if (role === 'assistant') {
+    bubbleContent += `
+      <div class="msg-footer">
+        ${timeHtml}
+        <button class="copy-btn" aria-label="Copy message" title="Copy to clipboard">📋</button>
+      </div>
+    `;
+  } else {
+    bubbleContent += timeHtml;
+  }
+  
   row.innerHTML = `
     <div class="avatar ${role === 'assistant' ? 'ai' : 'user-av'}">${role === 'assistant' ? 'AI' : 'You'}</div>
-    <div class="bubble ${role === 'assistant' ? 'ai' : 'user'}">${html}</div>
+    <div class="bubble ${role === 'assistant' ? 'ai' : 'user'}">${bubbleContent}</div>
   `;
+  
+  // Add copy button event listener
+  if (role === 'assistant') {
+    const copyBtn = row.querySelector('.copy-btn');
+    const bubble = row.querySelector('.bubble');
+    copyBtn.addEventListener('click', () => {
+      const text = bubble.innerText.replace(/Copy to clipboard$|^📋/, '').trim();
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✓';
+        copyBtn.style.color = 'var(--teal)';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+          copyBtn.style.color = '';
+        }, 2000);
+      }).catch(err => console.warn('Copy failed:', err));
+    });
+  }
+  
   wrap.appendChild(row);
   wrap.scrollTop = wrap.scrollHeight;
 }
@@ -1376,6 +1411,114 @@ async function refreshTrackerData(id) {
     state.tracker.loadingId = null;
     renderTracker();
   }
+}
+
+// Fetch live ECI results for a specific state/election
+async function fetchLiveResults(stateCode) {
+  try {
+    const res = await fetch(`/api/results?state=${encodeURIComponent(stateCode)}`);
+    if (!res.ok) {
+      throw new Error(`API returned ${res.status}`);
+    }
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    throw new Error(`Failed to fetch results: ${error.message}`);
+  }
+}
+
+// Fetch ECI press releases and news
+async function fetchEciNews() {
+  try {
+    const res = await fetch('/api/eci-news');
+    if (!res.ok) {
+      throw new Error(`API returned ${res.status}`);
+    }
+    const data = await res.json();
+    return data.items || [];
+  } catch (error) {
+    console.warn('ECI news fetch failed:', error);
+    return [];
+  }
+}
+
+// Render live results table
+function renderLiveResults(resultsData, electionId) {
+  const panel = document.getElementById('resultsTableWrap');
+  if (!panel) return;
+
+  if (!resultsData || !resultsData.html) {
+    panel.innerHTML = '<div class="results-placeholder">No results data available yet</div>';
+    return;
+  }
+
+  // Parse the HTML to extract party-wise results
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(resultsData.html, 'text/html');
+  
+  // Look for table rows with party data
+  const rows = Array.from(doc.querySelectorAll('table tr')).slice(1, 11);
+  
+  if (!rows || rows.length === 0) {
+    panel.innerHTML = '<div class="results-placeholder">Results data not available for this election yet</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Party</th><th>Won</th><th>Leading</th><th>Total</th></tr></thead><tbody>';
+  
+  rows.forEach((row) => {
+    const cells = Array.from(row.querySelectorAll('td, th'));
+    if (cells.length >= 4) {
+      const party = cells[0]?.textContent?.trim() || '';
+      const won = cells[1]?.textContent?.trim() || '0';
+      const leading = cells[2]?.textContent?.trim() || '0';
+      const total = cells[3]?.textContent?.trim() || '0';
+      
+      if (party && party !== 'Party' && party !== 'Unnamed Party') {
+        html += `<tr><td><strong>${escapeHtml(party)}</strong></td><td>${escapeHtml(won)}</td><td>${escapeHtml(leading)}</td><td>${escapeHtml(total)}</td></tr>`;
+      }
+    }
+  });
+  
+  html += '</tbody></table>';
+  
+  if (html.includes('<tr><td>') === false || rows.length === 0) {
+    panel.innerHTML = '<div class="results-placeholder">Unable to parse results table</div>';
+    return;
+  }
+
+  panel.innerHTML = html;
+  
+  // Update last updated time
+  const lastUpdated = document.getElementById('lastUpdated');
+  if (lastUpdated) {
+    const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    lastUpdated.textContent = `Last updated: ${now}`;
+  }
+}
+
+// Auto-refresh live results every 60 seconds when counting is active
+function startLiveResultsRefresh(electionId) {
+  const item = getTrackerItem(electionId);
+  
+  if (!hasCountingStarted(item)) {
+    return; // Don't refresh before counting starts
+  }
+
+  // Initial fetch
+  fetchLiveResults(item.id.split('-')[0]).then(data => {
+    renderLiveResults(data, electionId);
+  }).catch(err => console.warn('Initial results fetch failed:', err));
+
+  // Refresh every 60 seconds
+  const intervalId = setInterval(() => {
+    fetchLiveResults(item.id.split('-')[0]).then(data => {
+      renderLiveResults(data, electionId);
+    }).catch(err => console.warn('Auto-refresh failed:', err));
+  }, 60 * 1000);
+
+  // Store interval ID for cleanup if needed
+  window._liveResultsInterval = intervalId;
 }
 
 function renderTrackerDetail() {
@@ -1747,6 +1890,46 @@ function checkAnswer(index) {
   document.getElementById('quizNext').classList.add('visible');
 }
 
+function saveQuizScore() {
+  try {
+    const history = JSON.parse(localStorage.getItem('electiq_quiz_history') || '[]');
+    history.unshift({
+      date: new Date().toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
+      category: state.quiz.category,
+      score: state.quiz.score,
+      total: state.quiz.total,
+    });
+    localStorage.setItem('electiq_quiz_history', JSON.stringify(history.slice(0, 20)));
+  } catch (error) {
+    console.warn('Failed to save quiz score:', error);
+  }
+}
+
+function loadQuizHistory() {
+  try {
+    const history = JSON.parse(localStorage.getItem('electiq_quiz_history') || '[]');
+    return history.slice(0, 5);
+  } catch (error) {
+    return [];
+  }
+}
+
+function renderQuizHistory() {
+  const history = loadQuizHistory();
+  const list = document.getElementById('quizHistoryList');
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">No quiz attempts yet. Start a quiz to build your history.</div>';
+    return;
+  }
+  list.innerHTML = history.map((item) => `
+    <div class="history-item">
+      <span class="history-date">${item.date}</span>
+      <span class="history-category">${item.category}</span>
+      <span class="history-score">${item.score}/${item.total}</span>
+    </div>
+  `).join('');
+}
+
 async function nextQuestion() {
   if (state.quiz.total >= 8) {
     showScoreboard();
@@ -1756,6 +1939,8 @@ async function nextQuestion() {
 }
 
 function showScoreboard() {
+  saveQuizScore();
+  renderQuizHistory();
   document.getElementById('quizCard').classList.add('hidden');
   const scoreboard = document.getElementById('scoreboard');
   const percent = Math.round((state.quiz.score / state.quiz.total) * 100);
@@ -1777,8 +1962,49 @@ function askPrompt(prompt) {
   sendChat();
 }
 
+function loadThemeFromStorage() {
+  try {
+    const theme = localStorage.getItem('electiq_theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', theme);
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = theme === 'light' ? '☀️' : '🌙';
+  } catch (error) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('electiq_theme', next);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+}
+
+function updateSnapshotDate() {
+  const dateEl = document.getElementById('snapshotDate');
+  if (dateEl) {
+    const date = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    dateEl.textContent = `Snapshot: ${date}`;
+  }
+}
+
+function toggleHamburger() {
+  const topbar = document.querySelector('.topbar');
+  topbar.classList.toggle('nav-open');
+}
+
+function closeHamburger() {
+  const topbar = document.querySelector('.topbar');
+  topbar.classList.remove('nav-open');
+}
+
 async function bootstrapApp() {
   await loadRemoteConfig();
+
+  loadThemeFromStorage();
+  updateSnapshotDate();
 
   renderWelcome();
   renderTopics();
@@ -1786,9 +2012,10 @@ async function bootstrapApp() {
   renderTracker();
   renderLaws();
   renderQuizCategories();
+  renderQuizHistory();
   resetQuizStart();
   loadNewsTicker();
-  window.setInterval(loadNewsTicker, NEWS_TICKER_CONFIG.refreshMs);
+  window.setInterval(loadNewsTicker, 5 * 60 * 1000);
 
   const input = document.getElementById('chatInput');
   input.addEventListener('input', function onInput() {
@@ -1802,16 +2029,42 @@ async function bootstrapApp() {
   });
 
   document.getElementById('sendBtn').addEventListener('click', sendChat);
+  document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+  document.getElementById('navHamburger').addEventListener('click', toggleHamburger);
+  document.getElementById('historyToggleBtn').addEventListener('click', () => {
+    document.getElementById('quizHistoryList').classList.toggle('hidden');
+  });
+
+  // Handle live results refresh button
+  document.getElementById('refreshBtn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('refreshBtn');
+    btn.classList.add('spinning');
+    try {
+      const item = getTrackerItem(state.tracker.selectedId);
+      const stateCode = item.id.split('-')[0];
+      const data = await fetchLiveResults(stateCode);
+      renderLiveResults(data, state.tracker.selectedId);
+    } catch (error) {
+      console.warn('Refresh failed:', error);
+      const lastUpdated = document.getElementById('lastUpdated');
+      if (lastUpdated) lastUpdated.textContent = `Error: ${error.message}`;
+    } finally {
+      btn.classList.remove('spinning');
+    }
+  });
 
   document.body.addEventListener('click', (event) => {
+    // Close hamburger when tab is clicked
     const tabButton = event.target.closest('.tab-btn');
     if (tabButton?.dataset.tab) {
+      closeHamburger();
       switchTab(tabButton.dataset.tab);
       return;
     }
 
     const askNode = event.target.closest('[data-ask]');
     if (askNode?.dataset.ask) {
+      closeHamburger();
       askPrompt(askNode.dataset.ask);
       return;
     }
@@ -1828,6 +2081,8 @@ async function bootstrapApp() {
       state.tracker.selectedId = electionCard.dataset.electionId;
       state.tracker.view = 'detail';
       renderTracker();
+      // Trigger live results fetch for selected election
+      startLiveResultsRefresh(electionCard.dataset.electionId);
       return;
     }
 

@@ -17,6 +17,8 @@
         <div class="brand-name">Elect<em>IQ</em> India</div>
       </a>
 
+      <button class="nav-hamburger" id="navHamburger" aria-label="Open menu">☰</button>
+
       <nav class="tab-nav" aria-label="Primary">
         <button class="tab-btn active" data-tab="assistant">Assistant</button>
         <button class="tab-btn" data-tab="timeline">Election Cycle</button>
@@ -26,9 +28,10 @@
       </nav>
 
       <div class="topbar-right">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
         <div class="badge-live">
           <span class="live-dot"></span>
-          Snapshot: 1 May 2026
+          <span id="snapshotDate">Snapshot: 1 May 2026</span>
         </div>
       </div>
     </header>
@@ -85,6 +88,18 @@
           </div>
 
           <div class="tracker-banner" id="trackerBanner"></div>
+          
+          <div class="live-results-panel" id="liveResultsPanel">
+            <div class="live-results-header">
+              <h3>🗳️ Live ECI Results</h3>
+              <span class="last-updated" id="lastUpdated">Fetching...</span>
+              <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+            </div>
+            <div class="results-table-wrap" id="resultsTableWrap">
+              <div class="results-placeholder">Select an election above to see live results</div>
+            </div>
+          </div>
+
           <div class="tracker-grid" id="trackerGrid"></div>
           <div class="tracker-detail" id="trackerDetail"></div>
 
@@ -130,6 +145,14 @@
 
           <div class="quiz-card hidden" id="quizCard"></div>
           <div class="scoreboard hidden" id="scoreboard"></div>
+
+          <div class="quiz-history-section" id="quizHistorySection">
+            <div class="quiz-history-header">
+              <strong>Your Quiz History</strong>
+              <button class="history-toggle-btn" id="historyToggleBtn" aria-label="Toggle history">▼</button>
+            </div>
+            <div class="quiz-history-list hidden" id="quizHistoryList"></div>
+          </div>
         </div>
       </section>
     </main>

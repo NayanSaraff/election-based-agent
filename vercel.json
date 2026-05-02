@@ -6,6 +6,10 @@
       "dest": "/api/config.js"
     },
     {
+      "src": "/api/news",
+      "dest": "/api/news.js"
+    },
+    {
       "src": "/api/newsapi",
       "dest": "/api/newsapi.js"
     },
@@ -16,6 +20,14 @@
     {
       "src": "/api/chat",
       "dest": "/api/chat.js"
+    },
+    {
+      "src": "/api/results",
+      "dest": "/api/results.js"
+    },
+    {
+      "src": "/api/eci-news",
+      "dest": "/api/eci-news.js"
     },
     {
       "src": "/(.*)",
