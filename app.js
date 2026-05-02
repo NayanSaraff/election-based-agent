@@ -1,6 +1,40 @@
 ﻿'use strict';
 
-const CONFIG = window.ELECTIQ_CONFIG || {};
+window.ELECTIQ_CONFIG = window.ELECTIQ_CONFIG || {};
+const CONFIG = window.ELECTIQ_CONFIG;
+
+async function loadRemoteConfig() {
+  try {
+    const response = await fetch('/api/config', { cache: 'no-store' });
+    if (!response.ok) {
+      return;
+    }
+
+    const remoteConfig = await response.json();
+    if (!remoteConfig || typeof remoteConfig !== 'object') {
+      return;
+    }
+
+    Object.entries(remoteConfig).forEach(([sectionName, sectionValue]) => {
+      if (!sectionValue || typeof sectionValue !== 'object') {
+        return;
+      }
+
+      const existingSection = window.ELECTIQ_CONFIG[sectionName] || {};
+      const mergedSection = { ...existingSection };
+
+      Object.entries(sectionValue).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          mergedSection[key] = value;
+        }
+      });
+
+      window.ELECTIQ_CONFIG[sectionName] = mergedSection;
+    });
+  } catch (error) {
+    // Use whatever config.js already provided locally.
+  }
+}
 
 const GEMINI_COOLDOWN_KEY = 'electiq_gemini_cooldown_until';
 const GEMINI_COOLDOWN_MS = 60 * 60 * 1000;
@@ -1546,59 +1580,35 @@ function resetQuizStart() {
 }
 
 async function callModel(systemPrompt, messages, jsonMode = false) {
-  const api = getApiConfig();
-  if (!api.apiKey || !api.apiUrl) {
-    throw new Error('API config is missing. Add a valid key in config.js.');
-  }
-
-  if (api.provider === 'anthropic') {
-    const response = await fetch(api.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': api.apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: api.model,
-        max_tokens: jsonMode ? 800 : 1000,
-        system: systemPrompt,
-        messages,
-      }),
-    });
-    if (!response.ok) {
-      throw new Error(`Anthropic API error ${response.status}`);
-    }
-    const data = await response.json();
-    return data.content?.[0]?.text || '';
-  }
-
-  const url = new URL(api.apiUrl);
-  url.searchParams.set('key', api.apiKey);
-  const response = await fetch(url.toString(), {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: messages.map((message) => ({
-        role: message.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: message.content }],
-      })),
-      generationConfig: {
-        temperature: jsonMode ? 0.2 : 0.7,
-        maxOutputTokens: jsonMode ? 800 : 1000,
-        responseMimeType: jsonMode ? 'application/json' : 'text/plain',
-      },
+      systemPrompt,
+      messages,
+      jsonMode,
     }),
   });
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
+
   if (!response.ok) {
     if (response.status === 429) {
       setGeminiCooldown();
     }
-    throw new Error(`Gemini API error ${response.status}`);
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
   }
-  const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+  if (!data || typeof data.text !== 'string') {
+    throw new Error('Invalid response from /api/chat');
+  }
+
+  return data.text;
 }
 
 async function sendChat() {
@@ -1775,7 +1785,9 @@ function askPrompt(prompt) {
   sendChat();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+async function bootstrapApp() {
+  await loadRemoteConfig();
+
   renderWelcome();
   renderTopics();
   renderTimeline();
@@ -1865,5 +1877,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   refreshTrackerData(state.tracker.selectedId);
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    void bootstrapApp();
+  });
+} else {
+  void bootstrapApp();
+}
 
