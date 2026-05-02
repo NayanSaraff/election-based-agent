@@ -629,117 +629,6 @@ const QUIZ_FALLBACK = {
   ]
 };
 
-function getFallbackQuizQuestion(category) {
-  const bucket = QUIZ_FALLBACK[category] || QUIZ_FALLBACK.General;
-  return bucket[Math.floor(Math.random() * bucket.length)] || QUIZ_FALLBACK.General[0];
-}
-
-function buildLocalFollowups(text) {
-  const prompt = String(text || '').toLowerCase();
-  if (prompt.includes('president') || prompt.includes('electoral college')) {
-    return [
-      'Who can vote in the President election of India?',
-      'How is vote value calculated for President election?',
-      'How is the Vice-President elected in India?',
-    ];
-  }
-  if (prompt.includes('evm') || prompt.includes('vvpat')) {
-    return [
-      'How does VVPAT verification work?',
-      'Why are EVMs used in India?',
-      'Who secures EVMs before counting?',
-    ];
-  }
-  if (prompt.includes('register') || prompt.includes('voter')) {
-    return [
-      'How do I register to vote online in India?',
-      'Which documents are needed for voter registration?',
-      'How can I correct details on my voter card?',
-    ];
-  }
-  return [
-    'Explain Lok Sabha election steps in simple words.',
-    'What are key election laws in India?',
-    'How does counting and result declaration work?',
-  ];
-}
-
-function buildLocalChatResponse(userText) {
-  const prompt = String(userText || '').trim();
-  const lower = prompt.toLowerCase();
-  let answer = '';
-
-  if (lower.includes('president') || lower.includes('electoral college')) {
-    answer = [
-      'India uses an indirect electoral college for the President and Vice-President.',
-      'President election: elected MPs and elected MLAs vote using single transferable vote and secret ballot.',
-      'Vice-President election: members of both Houses of Parliament vote using single transferable vote.',
-      'This is different from Lok Sabha elections, where citizens vote directly.'
-    ].join('\n');
-  } else if (lower.includes('lok sabha') || lower.includes('parliament')) {
-    answer = [
-      'Lok Sabha elections are direct elections where citizens vote for candidates in their constituency.',
-      'The party or coalition with majority support in Lok Sabha forms the Union Government.',
-      'A majority mark is needed to form government, and then the Prime Minister is appointed.',
-      'The Election Commission of India supervises the full process from schedule to final results.'
-    ].join('\n');
-  } else if (lower.includes('vidhan sabha') || lower.includes('assembly')) {
-    answer = [
-      'Vidhan Sabha elections choose representatives for a state legislative assembly.',
-      'Voters directly elect MLAs from state constituencies.',
-      'The party or coalition with majority in the assembly forms the state government.',
-      'Polling and counting are conducted under Election Commission rules and state election machinery.'
-    ].join('\n');
-  } else if (lower.includes('evm') || lower.includes('vvpat')) {
-    answer = [
-      'EVM records the vote electronically at the polling station.',
-      'VVPAT prints a short paper slip visible to the voter for a few seconds.',
-      'The slip then drops into a sealed box for audit and verification.',
-      'This supports transparency while keeping vote counting efficient.'
-    ].join('\n');
-  } else if (lower.includes('register') || lower.includes('voter')) {
-    answer = [
-      'To vote in India, you must be 18+ and enrolled in the electoral roll.',
-      'You can apply through NVSP or authorized voter registration channels.',
-      'Keep identity and address proof ready during registration.',
-      'After verification, your name is added to the roll and you can vote.'
-    ].join('\n');
-  } else if (lower.includes('law') || lower.includes('constitution') || lower.includes('article')) {
-    answer = [
-      'Indian election governance is anchored in the Constitution, especially Article 324 for the Election Commission of India.',
-      'Representation of the People Acts, 1950 and 1951, govern rolls, qualifications, conduct of elections, and disputes.',
-      'The Conduct of Elections Rules, 1961 define procedural details for nominations, polling, and counting.',
-      'The Model Code of Conduct sets campaign behavior standards once elections are announced.'
-    ].join('\n');
-  } else if (lower.includes('count') || lower.includes('result')) {
-    answer = [
-      'Counting starts on the official date announced by the Election Commission of India.',
-      'Postal ballots are processed first, then EVM round-wise counting is carried out constituency by constituency.',
-      'Round updates are published as trends, and final winners are declared after validation.',
-      'Official confirmed results should be taken from Election Commission result channels.'
-    ].join('\n');
-  } else {
-    answer = [
-      'Indian election flow in short: electoral roll preparation, nominations, scrutiny, campaign period, polling, counting, and final declaration.',
-      'Key institutions include the Election Commission of India, returning officers, and polling staff.',
-      'Ask a specific topic like Lok Sabha, Vidhan Sabha, election laws, voter registration, EVM/VVPAT, or electoral college for a more detailed answer.'
-    ].join('\n');
-  }
-
-  return `${answer}\nFOLLOWUPS:${JSON.stringify(buildLocalFollowups(prompt))}`;
-}
-
-function buildLocalModelResponse(messages, jsonMode) {
-  if (jsonMode) {
-    const userPrompt = String(messages?.[0]?.content || '');
-    const categoryMatch = userPrompt.match(/Category:\s*([^\.\n]+)/i);
-    const category = categoryMatch ? categoryMatch[1].trim() : 'General';
-    return JSON.stringify(getFallbackQuizQuestion(category));
-  }
-  const userText = String(messages?.[messages.length - 1]?.content || '');
-  return buildLocalChatResponse(userText);
-}
-
 function switchTab(tabId) {
   state.activeTab = tabId;
   document.querySelectorAll('.tab-btn').forEach((button) => {
@@ -866,6 +755,19 @@ function buildLessonHtml(questionText) {
   `;
 }
 
+function buildAnswerMethodHtml() {
+  return `
+    <div class="answer-method">
+      <div class="answer-method-title">How To Read This</div>
+      <div class="answer-method-grid">
+        <div class="answer-method-card"><strong>1</strong><span>Scan the flow first</span></div>
+        <div class="answer-method-card"><strong>2</strong><span>Read the plain-language explanation</span></div>
+        <div class="answer-method-card"><strong>3</strong><span>Ask for any one step in more detail</span></div>
+      </div>
+    </div>
+  `;
+}
+
 const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].replace(/["{}\[\]]/g, " ").substring(0, 150).trim(); function renderNewsTickerItems(items) {
   const track = document.getElementById('newsMarqueeTrack');
   if (!track) return;
@@ -877,8 +779,11 @@ const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].repla
   const buildFragment = (list) => {
     const frag = document.createDocumentFragment();
     list.forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'news-marquee-item';
+      const a = document.createElement('a');
+      a.className = 'news-marquee-item';
+      a.href = item.url || '#';
+      a.target = '_blank';
+      a.rel = 'noreferrer';
 
       const dot = document.createElement('span');
       dot.className = 'news-dot';
@@ -887,9 +792,9 @@ const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].repla
       // Use textContent to avoid injecting tags or broken JSON
       title.textContent = (item.title || '').replace(/[\n\r]+/g, ' ').trim();
 
-      row.appendChild(dot);
-      row.appendChild(title);
-      frag.appendChild(row);
+      a.appendChild(dot);
+      a.appendChild(title);
+      frag.appendChild(a);
     });
     return frag;
   };
@@ -1048,12 +953,30 @@ async function loadNewsTicker() {
 }
 
 async function generateTickerWithGemini() {
+  const api = getApiConfig();
+  if (!api || api.provider !== 'gemini' || !api.apiKey && !api.key) {
+    throw new Error('Gemini not configured');
+  }
+  const key = api.apiKey || api.key;
   const prompt = `Default Gemini prompt: fetch only Indian election news. Provide 6 concise, recent-style India election headlines only as a JSON array. Every headline must be strictly about Indian elections, such as polling, counting, results, nominations, candidates, voter turnout, EVMs, VVPAT, the ECI, Lok Sabha, Rajya Sabha, Vidhan Sabha, or the President/Vice-President electoral college. Do not include any non-election topic. Each item should be an object with keys \"title\" and \"url\". If you cannot provide a real URL, use \"#\". Example: [{"title":"...","url":"..."}, ...]`;
-  const raw = await callModel(
-    'You generate concise India election headlines as JSON only.',
-    [{ role: 'user', content: prompt }],
-    false
-  );
+
+  const url = new URL(api.apiUrl);
+  url.searchParams.append('key', key);
+
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.2, maxOutputTokens: 512 },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Gemini ticker error ${res.status}: ${body}`);
+  }
+  const data = await res.json();
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   // Try to parse JSON out of raw text. Accept JSON embedded inside code fences or text.
   let items = [];
   const tryParseJsonFromString = (text) => {
@@ -1623,35 +1546,59 @@ function resetQuizStart() {
 }
 
 async function callModel(systemPrompt, messages, jsonMode = false) {
-  const payload = {
-    systemPrompt,
-    messages,
-    jsonMode,
-  };
+  const api = getApiConfig();
+  if (!api.apiKey || !api.apiUrl) {
+    throw new Error('API config is missing. Add a valid key in config.js.');
+  }
 
-  const response = await fetch('/api/chat', {
+  if (api.provider === 'anthropic') {
+    const response = await fetch(api.apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': api.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: api.model,
+        max_tokens: jsonMode ? 800 : 1000,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Anthropic API error ${response.status}`);
+    }
+    const data = await response.json();
+    return data.content?.[0]?.text || '';
+  }
+
+  const url = new URL(api.apiUrl);
+  url.searchParams.set('key', api.apiKey);
+  const response = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: messages.map((message) => ({
+        role: message.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: message.content }],
+      })),
+      generationConfig: {
+        temperature: jsonMode ? 0.2 : 0.7,
+        maxOutputTokens: jsonMode ? 800 : 1000,
+        responseMimeType: jsonMode ? 'application/json' : 'text/plain',
+      },
+    }),
   });
-
-  let data = null;
-  try {
-    data = await response.json();
-  } catch (error) {
-    data = null;
-  }
-
   if (!response.ok) {
-    const message = data?.error || `Request failed with status ${response.status}`;
-    throw new Error(message);
+    if (response.status === 429) {
+      setGeminiCooldown();
+    }
+    throw new Error(`Gemini API error ${response.status}`);
   }
-
-  if (!data || typeof data.text !== 'string') {
-    throw new Error('Invalid response from /api/chat');
-  }
-
-  return data.text;
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
 async function sendChat() {
@@ -1664,18 +1611,15 @@ async function sendChat() {
   if (!text) {
     return;
   }
-  if (text.length > 2000) {
-    appendMessage('assistant', formatBubble('Please keep your message under 2000 characters.'));
-    return;
-  }
 
   state.chat.loading = true;
   input.value = '';
   input.style.height = 'auto';
   document.getElementById('sendBtn').disabled = true;
 
-  // Show startup suggestions only before the first user message.
-  document.querySelector('.welcome-hero')?.remove();
+  // Each new prompt starts a fresh visible chat session.
+  document.getElementById('messages').innerHTML = '';
+  state.chat.history = [];
 
   appendMessage('user', escapeHtml(text));
   state.chat.history.push({ role: 'user', content: text });
@@ -1687,7 +1631,8 @@ async function sendChat() {
     hideTyping();
     state.chat.history.push({ role: 'assistant', content: raw });
 
-    let html = buildLessonHtml(text);
+    let html = buildAnswerMethodHtml();
+    html += buildLessonHtml(text);
     html += formatBubble(reply);
     if (followUps.length) {
       html += `<div class="follow-ups">${followUps.map((question) => `

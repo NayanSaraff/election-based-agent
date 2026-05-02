@@ -70,25 +70,31 @@ function filterStreamingElectionHeadlines(items) {
 
 // Generate one fresh headline from Gemini
 async function fetchSingleHeadlineFromGemini() {
+  const api = getApiConfig();
+  if (!api || api.provider !== 'gemini' || !api.apiKey) {
+    throw new Error('Gemini not configured');
+  }
+  
+  const key = api.apiKey;
   const prompt = `Default Gemini prompt: fetch only Indian election news. Generate ONE fresh, realistic India election headline ONLY. It must be strictly about Indian elections, such as polling, results, candidates, nominations, election dates, voter turnout, EVMs, VVPAT, the ECI, or the electoral college. Do not include any non-election topic. Date: 1 May 2026. Max 100 chars. Respond ONLY with headline text, nothing else.`;
+  const url = new URL(api.apiUrl);
+  url.searchParams.append('key', key);
 
-  const res = await fetch('/api/chat', {
+  const res = await fetch(url.toString(), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      systemPrompt: 'You generate concise Indian election headlines only.',
-      messages: [{ role: 'user', content: prompt }],
-      jsonMode: false,
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 150 },
     }),
   });
   
   if (!res.ok) {
-    const payload = await res.json().catch(() => ({}));
-    throw new Error(payload.error || `Chat API error ${res.status}`);
+    throw new Error(`Gemini error ${res.status}`);
   }
   
   const data = await res.json();
-  const headline = String(data.text || '').split('\n')[0].trim();
+  const headline = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
   
   if (!headline || !isStreamingElectionHeadline(headline)) throw new Error('No election headline generated');
   
@@ -134,8 +140,11 @@ function renderStreamingTicker() {
   const buildFragment = (items) => {
     const frag = document.createDocumentFragment();
     items.forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'news-marquee-item';
+      const a = document.createElement('a');
+      a.className = 'news-marquee-item';
+      a.href = item.url || '#';
+      a.target = '_blank';
+      a.rel = 'noreferrer';
       
       const dot = document.createElement('span');
       dot.className = 'news-dot';
@@ -143,9 +152,9 @@ function renderStreamingTicker() {
       const title = document.createElement('span');
       title.textContent = (item.title || '').trim().substring(0, 200);
       
-      row.appendChild(dot);
-      row.appendChild(title);
-      frag.appendChild(row);
+      a.appendChild(dot);
+      a.appendChild(title);
+      frag.appendChild(a);
     });
     return frag;
   };

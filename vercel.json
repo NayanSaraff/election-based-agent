@@ -2,6 +2,10 @@
   "version": 2,
   "routes": [
     {
+      "src": "/api/config",
+      "dest": "/api/config.js"
+    },
+    {
       "src": "/api/chat",
       "dest": "/api/chat.js"
     },
