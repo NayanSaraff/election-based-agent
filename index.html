@@ -1,14 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self'; frame-ancestors 'none';">
   <title>ElectIQ India | Election Guide</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;600&display=swap"
+    rel="stylesheet">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-BEJKCJ7YLE"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-BEJKCJ7YLE');
+  </script>
   <script src="config.js"></script>
   <script src="news-ticker-streaming.js"></script>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBh9ff-VzGGPFH360i7mRwTKD1-xrGkgfM",
+      authDomain: "electiq-india.firebaseapp.com",
+      projectId: "electiq-india",
+      storageBucket: "electiq-india.firebasestorage.app",
+      messagingSenderId: "558493142266",
+      appId: "1:558493142266:web:8c9162b9ea07b0fba6cd43",
+      measurementId: "G-BEJKCJ7YLE"
+    };
+
+    const hasRealConfig = Object.values(firebaseConfig).every((value) => typeof value === 'string' && !value.includes('YOUR_'));
+    if (hasRealConfig) {
+      const app = initializeApp(firebaseConfig);
+      window.electiqDb = getFirestore(app);
+    } else {
+      window.electiqDb = null;
+    }
+    window.firestoreLib = { collection, addDoc, getDocs, query, orderBy, limit };
+  </script>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="app-shell">
     <header class="topbar">
@@ -60,7 +99,8 @@
 
             <div class="input-bar">
               <div class="input-inner">
-                <textarea id="chatInput" rows="1" placeholder="Ask about Lok Sabha polls, EVMs, voter ID, the President's electoral college, current 2026 state polls, or election laws..."></textarea>
+                <textarea id="chatInput" rows="1"
+                  placeholder="Ask about Lok Sabha polls, EVMs, voter ID, the President's electoral college, current 2026 state polls, or election laws..."></textarea>
                 <button class="send-btn" id="sendBtn" aria-label="Send message">➜</button>
               </div>
               <div class="input-hint">Enter to send · Shift+Enter for a new line</div>
@@ -73,7 +113,8 @@
         <div class="timeline-layout">
           <div class="timeline-header">
             <h2>How Indian Elections Move</h2>
-            <p>From electoral rolls to counting day, this is a simplified guide to how major Indian elections are normally administered by the Election Commission of India.</p>
+            <p>From electoral rolls to counting day, this is a simplified guide to how major Indian elections are
+              normally administered by the Election Commission of India.</p>
           </div>
           <div class="tl-progress-bar" id="tlBar"></div>
           <div class="stages-grid" id="stagesGrid"></div>
@@ -84,11 +125,12 @@
         <div class="info-layout">
           <div class="info-hero">
             <h2>Current Elections In India</h2>
-            <p>Updated for a <strong>1 May 2026</strong> snapshot. These cards are meant as a reference inside the app, so live outcomes may change after counting day.</p>
+            <p>Updated for a <strong>1 May 2026</strong> snapshot. These cards are meant as a reference inside the app,
+              so live outcomes may change after counting day.</p>
           </div>
 
           <div class="tracker-banner" id="trackerBanner"></div>
-          
+
           <div class="live-results-panel" id="liveResultsPanel">
             <div class="live-results-header">
               <h3>🗳️ Live ECI Results</h3>
@@ -120,7 +162,8 @@
         <div class="info-layout">
           <div class="info-hero">
             <h2>Indian Election Laws</h2>
-            <p>Core constitutional provisions, major statutes, and the indirect electoral college rules for choosing the President and Vice-President of India.</p>
+            <p>Core constitutional provisions, major statutes, and the indirect electoral college rules for choosing the
+              President and Vice-President of India.</p>
           </div>
 
           <div class="law-callout" id="electoralCollegeCard"></div>
@@ -132,7 +175,8 @@
         <div class="quiz-layout">
           <div class="quiz-header">
             <h2>India Elections Quiz</h2>
-            <p>Practice the basics: Parliament, Assemblies, voter registration, constitutional articles, EVMs, counting, and the President's electoral college.</p>
+            <p>Practice the basics: Parliament, Assemblies, voter registration, constitutional articles, EVMs, counting,
+              and the President's electoral college.</p>
           </div>
 
           <div class="category-bar" id="catBar"></div>
@@ -160,4 +204,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

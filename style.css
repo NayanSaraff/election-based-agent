@@ -74,13 +74,41 @@
 
 html, body {
   height: 100%;
-  font-family: 'Sora', sans-serif;
+  font-family: 'Inter', 'Noto Sans Devanagari', sans-serif;
   background: var(--bg);
   color: var(--text-1);
-  font-size: 15px;
+  font-size: clamp(0.95rem, 1.5vw, 1rem);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
+
+img, svg {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+textarea,
+.tab-btn,
+.send-btn,
+.theme-toggle,
+.nav-hamburger,
+.refresh-btn,
+.quiz-opt,
+.cat-btn,
+.starter-card,
+.topic-item,
+.ask-btn,
+.follow-up-chip {
+  touch-action: manipulation;
+  min-height: 44px;
+}
+
+h1 { font-size: clamp(1.4rem, 3vw, 2rem); }
+h2 { font-size: clamp(1.2rem, 2.4vw, 1.5rem); }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 5px; }
@@ -2123,11 +2151,141 @@ html, body {
   color: var(--text-1);
 }
 
-/* Responsive: horizontal scroll on mobile */
+/* ================================================================
+   RESPONSIVE OVERRIDES
+   ================================================================ */
+
+@media (min-width: 769px) {
+  .tab-nav {
+    display: flex;
+    flex-wrap: nowrap;
+  }
+
+  .tracker-grid,
+  .laws-grid,
+  .stages-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .bubble {
+    max-width: 70%;
+  }
+}
+
+@media (min-width: 1200px) {
+  .app-shell {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  .info-layout,
+  .timeline-layout,
+  .quiz-layout {
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
 @media (max-width: 768px) {
+  .topbar {
+    height: auto;
+    min-height: 60px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .nav-hamburger {
+    display: block;
+  }
+
+  .topbar-right {
+    margin-left: auto;
+  }
+
+  .tab-nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  .tab-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0.9rem 0.75rem;
+  }
+
+  .chat-layout {
+    flex-direction: column;
+  }
+
+  .topics-sidebar {
+    display: none;
+  }
+
+  .messages-wrap {
+    padding: 1rem;
+  }
+
+  .bubble {
+    max-width: 90%;
+  }
+
+  .input-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 40;
+    padding: 0.75rem;
+  }
+
+  .input-inner {
+    min-height: 52px;
+  }
+
+  #chatInput {
+    font-size: 16px;
+  }
+
+  .news-marquee {
+    grid-template-columns: 1fr;
+  }
+
+  .news-marquee-label {
+    justify-content: center;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .news-marquee-item {
+    font-size: 0.9rem;
+  }
+
+  .news-marquee-track.moving {
+    animation-duration: 90s;
+  }
+
+  .timeline-layout,
+  .quiz-layout,
+  .info-layout {
+    padding: 1rem;
+  }
+
+  .stages-grid,
+  .tracker-grid,
+  .laws-grid,
+  .info-split {
+    grid-template-columns: 1fr;
+  }
+
   .results-table-wrap {
     overflow-x: auto;
-    max-height: 300px;
+    max-height: 320px;
   }
 
   .results-table-wrap table {
@@ -2137,34 +2295,85 @@ html, body {
   .live-results-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.75rem;
   }
 
   .refresh-btn {
     align-self: flex-end;
   }
-}
 
-
-  .info-split {
-    grid-template-columns: 1fr;
-  }
-
-  .tracker-detail-head {
-    flex-direction: column;
+  .quiz-card {
+    padding: 1.25rem;
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
+  .brand-name {
+    font-size: 1rem;
+  }
+
   .tab-nav {
-    overflow-x: auto;
-    max-width: 100%;
+    grid-template-columns: 1fr;
+    position: relative;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s var(--ease);
   }
 
-  .info-layout {
-    padding: 1rem;
+  .topbar.nav-open .tab-nav {
+    max-height: 72vh;
+    overflow: visible;
+    padding-top: 0.25rem;
   }
 
-  .topbar-right {
-    display: none;
+  .tab-btn {
+    justify-content: flex-start;
+  }
+
+  .chat-layout {
+    gap: 0;
+  }
+
+  .messages-wrap {
+    padding: 0.75rem;
+  }
+
+  .bubble {
+    max-width: 92%;
+  }
+
+  .bubble.ai,
+  .bubble.user {
+    font-size: 0.95rem;
+  }
+
+  .input-bar {
+    padding: 0.65rem;
+  }
+
+  .input-hint {
+    font-size: 0.65rem;
+  }
+
+  .news-marquee-item {
+    font-size: 0.95rem;
+  }
+
+  .timeline-header h2,
+  .quiz-header h2,
+  .info-hero h2 {
+    font-size: 1.2rem;
+  }
+
+  .welcome-hero h2 {
+    font-size: 1.2rem;
+  }
+
+  .tracker-banner,
+  .quiz-card,
+  .scoreboard,
+  .live-results-panel,
+  .law-callout {
+    border-radius: var(--r-lg);
   }
 }

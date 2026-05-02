@@ -38,6 +38,16 @@ async function loadRemoteConfig() {
 
 const AI_COOLDOWN_KEY = 'electiq_ai_cooldown_until';
 const AI_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_CHAT_HISTORY = 20;
+const NEWS_REFRESH_INTERVAL = 5 * 60 * 1000;
+const RESULTS_REFRESH_INTERVAL = 60 * 1000;
+const MAX_TICKER_ITEMS = 15;
+
+const logger = {
+  info: (...args) => console.log('[ElectIQ]', ...args),
+  warn: (...args) => console.warn('[ElectIQ]', ...args),
+  error: (...args) => console.error('[ElectIQ]', ...args),
+};
 
 function getAiCooldownUntil() {
   try {
@@ -62,6 +72,37 @@ function isAiCooldownActive() {
 function isAiRateLimitError(error) {
   const message = String(error?.message || '');
   return message.includes('429') || message.includes('rate') || message.includes('Rate');
+}
+
+function trackEvent(eventName, params = {}) {
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', eventName, params);
+  }
+}
+
+function getOrCreateSessionId() {
+  let id = sessionStorage.getItem('electiq_session');
+  if (!id) {
+    id = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem('electiq_session', id);
+  }
+  return id;
+}
+
+/** Persist a completed chat exchange to Firestore when configured. */
+async function saveChatToFirestore(userMsg, aiMsg) {
+  try {
+    if (!window.electiqDb || !window.firestoreLib) return;
+    const { collection, addDoc } = window.firestoreLib;
+    await addDoc(collection(window.electiqDb, 'chats'), {
+      userMessage: userMsg,
+      aiResponse: aiMsg,
+      timestamp: new Date().toISOString(),
+      sessionId: getOrCreateSessionId(),
+    });
+  } catch (error) {
+    logger.warn('Firestore save failed:', error);
+  }
 }
 
 const ELECTION_HEADLINE_KEYWORDS = [
@@ -131,7 +172,7 @@ Return valid JSON only:
 }`;
 
 const NEWS_TICKER_CONFIG = {
-  refreshMs: 15 * 60 * 1000,
+  refreshMs: NEWS_REFRESH_INTERVAL,
   cacheKey: 'electiq_ticker_cache',
   cacheTtlMs: 10 * 60 * 1000, // Cache for 10 minutes
   proxyBase: 'https://api.allorigins.win/raw?url=',
@@ -625,8 +666,10 @@ const QUIZ_FALLBACK = {
   ]
 };
 
+/** Switch the visible app tab and emit analytics. */
 function switchTab(tabId) {
   state.activeTab = tabId;
+  trackEvent('tab_changed', { tab_name: tabId });
   document.querySelectorAll('.tab-btn').forEach((button) => {
     button.classList.toggle('active', button.dataset.tab === tabId);
   });
@@ -854,6 +897,7 @@ function setTickerCache(items) {
   }
 }
 
+/** Load and render the election news ticker from multiple sources. */
 async function loadNewsTicker() {
   const track = document.getElementById('newsMarqueeTrack');
   const hasExisting = track && track.children && track.children.length && !track.textContent.includes('Loading latest');
@@ -864,6 +908,7 @@ async function loadNewsTicker() {
     const filteredCached = filterElectionHeadlines(cached);
     if (filteredCached.length) {
       renderNewsTickerItems(filteredCached);
+      trackEvent('news_ticker_loaded', { headline_count: filteredCached.length });
       return;
     }
   }
@@ -905,27 +950,29 @@ async function loadNewsTicker() {
         seen.add(key);
         deduped.push(it);
       }
-      if (deduped.length >= 15) break;
+      if (deduped.length >= MAX_TICKER_ITEMS) break;
     }
 
     if (deduped.length >= 3) {
-      console.log('📰 Aggregated', deduped.length, 'unique headlines from parallel sources');
+      logger.info('Aggregated', deduped.length, 'unique headlines from parallel sources');
       setTickerCache(deduped);
       renderNewsTickerItems(deduped);
+      trackEvent('news_ticker_loaded', { headline_count: deduped.length });
       return;
     }
   } catch (error) {
-    console.warn('Parallel news aggregation failed:', error);
+    logger.warn('Parallel news aggregation failed:', error);
   }
 
   // QUATERNARY: Try generating with AI model
   if (isAiCooldownActive()) {
-    console.warn('AI ticker generation skipped due to cooldown');
+    logger.warn('AI ticker generation skipped due to cooldown');
     if (hasExisting) {
       return;
     }
-    console.log('📰 Using fallback static headlines while AI is cooling down');
+    logger.info('Using fallback static headlines while AI is cooling down');
     renderNewsTickerItems(NEWS_TICKER_CONFIG.fallback);
+    trackEvent('news_ticker_loaded', { headline_count: NEWS_TICKER_CONFIG.fallback.length });
     return;
   }
 
@@ -933,13 +980,14 @@ async function loadNewsTicker() {
     const genItems = await generateTickerWithGemini();
     const filteredGenItems = filterElectionHeadlines(genItems);
     if (filteredGenItems && filteredGenItems.length) {
-      console.log('📰 Generated', filteredGenItems.length, 'headlines with AI model');
+      logger.info('Generated', filteredGenItems.length, 'headlines with AI model');
       setTickerCache(filteredGenItems);
       renderNewsTickerItems(filteredGenItems);
+      trackEvent('news_ticker_loaded', { headline_count: filteredGenItems.length });
       return;
     }
   } catch (err) {
-    console.warn('AI ticker generation failed:', err);
+    logger.warn('AI ticker generation failed:', err);
     if (isAiRateLimitError(err)) {
       setAiCooldown();
     }
@@ -947,13 +995,14 @@ async function loadNewsTicker() {
 
   // No fresh items fetched. If there are already items showing, keep them looping.
   if (hasExisting) {
-    console.log('📰 Keeping existing marquee items');
+    logger.info('Keeping existing marquee items');
     return;
   }
 
   // FALLBACK: Static headlines
-  console.log('📰 Using fallback static headlines');
+  logger.info('Using fallback static headlines');
   renderNewsTickerItems(NEWS_TICKER_CONFIG.fallback);
+  trackEvent('news_ticker_loaded', { headline_count: NEWS_TICKER_CONFIG.fallback.length });
 }
 
 async function generateTickerWithGemini() {
@@ -1392,6 +1441,7 @@ async function refreshTrackerData(id) {
 }
 
 // Fetch live ECI results for a specific state/election
+/** Fetch live election results for a state code. */
 async function fetchLiveResults(stateCode) {
   try {
     const res = await fetch(`/api/results?state=${encodeURIComponent(stateCode)}`);
@@ -1421,6 +1471,7 @@ async function fetchEciNews() {
 }
 
 // Render live results table
+/** Render live results or a graceful empty state for no active counting. */
 function renderLiveResults(resultsData, electionId) {
   const panel = document.getElementById('resultsTableWrap');
   if (!panel) return;
@@ -1494,6 +1545,7 @@ function renderLiveResults(resultsData, electionId) {
 }
 
 // Auto-refresh live results every 60 seconds when counting is active
+/** Start the polling-day live refresh loop for the selected election. */
 function startLiveResultsRefresh(electionId) {
   const item = getTrackerItem(electionId);
   
@@ -1511,7 +1563,7 @@ function startLiveResultsRefresh(electionId) {
     fetchLiveResults(item.id.split('-')[0]).then(data => {
       renderLiveResults(data, electionId);
     }).catch(err => console.warn('Auto-refresh failed:', err));
-  }, 60 * 1000);
+  }, RESULTS_REFRESH_INTERVAL);
 
   // Store interval ID for cleanup if needed
   window._liveResultsInterval = intervalId;
@@ -1742,6 +1794,7 @@ async function callModel(systemPrompt, messages, jsonMode = false) {
   return data.text;
 }
 
+/** Send the current chat prompt to the AI model and render the reply. */
 async function sendChat() {
   if (state.chat.loading) {
     return;
@@ -1764,6 +1817,7 @@ async function sendChat() {
 
   appendMessage('user', escapeHtml(text));
   state.chat.history.push({ role: 'user', content: text });
+  trackEvent('chat_message_sent', { length: text.length });
   showTyping();
 
   try {
@@ -1771,6 +1825,7 @@ async function sendChat() {
     const { text: reply, followUps } = parseResponse(raw);
     hideTyping();
     state.chat.history.push({ role: 'assistant', content: raw });
+    state.chat.history = state.chat.history.slice(-MAX_CHAT_HISTORY);
 
     let html = buildAnswerMethodHtml();
     html += buildLessonHtml(text);
@@ -1781,6 +1836,7 @@ async function sendChat() {
       `).join('')}</div>`;
     }
     appendMessage('assistant', html);
+    await saveChatToFirestore(text, reply);
   } catch (error) {
     hideTyping();
     const message = isAiRateLimitError(error)
@@ -1794,14 +1850,17 @@ async function sendChat() {
   }
 }
 
+/** Start a new quiz run and emit the start event. */
 async function startQuiz() {
   state.quiz.score = 0;
   state.quiz.total = 0;
+  trackEvent('quiz_started', { category: state.quiz.category });
   document.getElementById('quizStart').classList.add('hidden');
   document.getElementById('scoreboard').classList.add('hidden');
   await loadQuestion();
 }
 
+/** Load a single quiz question from the model or fallback set. */
 async function loadQuestion() {
   if (state.quiz.loading) {
     return;
@@ -1934,9 +1993,11 @@ async function nextQuestion() {
   await loadQuestion();
 }
 
+/** Show the final quiz score and completion state. */
 function showScoreboard() {
   saveQuizScore();
   renderQuizHistory();
+  trackEvent('quiz_completed', { score: state.quiz.score, total: state.quiz.total });
   document.getElementById('quizCard').classList.add('hidden');
   const scoreboard = document.getElementById('scoreboard');
   const percent = Math.round((state.quiz.score / state.quiz.total) * 100);
@@ -1996,6 +2057,7 @@ function closeHamburger() {
   topbar.classList.remove('nav-open');
 }
 
+/** Bootstrap the app after remote config, theme, and dynamic content setup. */
 async function bootstrapApp() {
   await loadRemoteConfig();
 
@@ -2011,7 +2073,7 @@ async function bootstrapApp() {
   renderQuizHistory();
   resetQuizStart();
   loadNewsTicker();
-  window.setInterval(loadNewsTicker, 5 * 60 * 1000);
+  window.setInterval(loadNewsTicker, NEWS_REFRESH_INTERVAL);
 
   const input = document.getElementById('chatInput');
   input.addEventListener('input', function onInput() {
@@ -2042,7 +2104,7 @@ async function bootstrapApp() {
       const data = await fetchLiveResults(stateCode);
       renderLiveResults(data, state.tracker.selectedId);
     } catch (error) {
-      console.warn('Refresh failed:', error);
+      logger.warn('Refresh failed:', error);
       const lastUpdated = document.getElementById('lastUpdated');
       if (lastUpdated) lastUpdated.textContent = `Error: ${error.message}`;
     } finally {

@@ -4,5 +4,11 @@
   "private": true,
   "engines": {
     "node": "20.x"
+  },
+  "scripts": {
+    "test": "node tests/test-api-chat.js && node tests/test-api-news.js && node tests/test-frontend-utils.js",
+    "test:api": "node tests/test-api-chat.js",
+    "test:news": "node tests/test-api-news.js",
+    "test:frontend": "node tests/test-frontend-utils.js"
   }
 }
