@@ -1915,10 +1915,6 @@ async function sendChat() {
   input.style.height = 'auto';
   document.getElementById('sendBtn').disabled = true;
 
-  // Each new prompt starts a fresh visible chat session.
-  document.getElementById('messages').innerHTML = '';
-  state.chat.history = [];
-
   appendMessage('user', escapeHtml(text));
   state.chat.history.push({ role: 'user', content: text });
   trackEvent('chat_message_sent', { length: text.length });
