@@ -1203,12 +1203,55 @@ function parseResponse(raw) {
   return { text, followUps };
 }
 
+const CHAT_EMPTY_STATE_HTML = `
+  <div class="chat-empty-state" id="chatEmptyState">
+    <div class="empty-icon">🗳️</div>
+    <h3>Ask me anything about Indian Elections</h3>
+    <p>Lok Sabha, EVMs, voter registration, election laws, current polls and more...</p>
+    <div class="empty-suggestions">
+      <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='What is EVM?'; document.getElementById('sendBtn').click()">What is EVM?</button>
+      <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='How is the President of India elected?'; document.getElementById('sendBtn').click()">How is President elected?</button>
+      <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='What is Model Code of Conduct?'; document.getElementById('sendBtn').click()">What is MCC?</button>
+    </div>
+  </div>
+`;
+
+function syncChatEmptyState() {
+  const wrap = document.getElementById('messages');
+  if (!wrap) {
+    return;
+  }
+
+  const hasMessages = wrap.querySelector('.msg-row') || wrap.querySelector('.typing-row');
+  const emptyState = document.getElementById('chatEmptyState');
+
+  if (hasMessages) {
+    if (emptyState) {
+      emptyState.remove();
+    }
+    return;
+  }
+
+  if (!emptyState) {
+    wrap.insertAdjacentHTML('afterbegin', CHAT_EMPTY_STATE_HTML);
+  }
+}
+
+function clearChatHistory() {
+  state.chat.history = [];
+  const wrap = document.getElementById('messages');
+  if (!wrap) {
+    return;
+  }
+  wrap.innerHTML = '';
+  syncChatEmptyState();
+}
+
+window.clearChatHistory = clearChatHistory;
+
 function appendMessage(role, html, rawText = '') {
   const wrap = document.getElementById('messages');
-  const emptyState = document.getElementById('chatEmptyState');
-  if (emptyState) {
-    emptyState.remove();
-  }
+  document.getElementById('chatEmptyState')?.remove();
   const row = document.createElement('div');
   row.className = `msg-row ${role === 'assistant' ? '' : 'user'}`.trim();
   if (rawText) {
@@ -1260,18 +1303,27 @@ function appendMessage(role, html, rawText = '') {
       const sourceText = row.dataset.rawText || bubble.innerText.trim();
       trackEvent('translate_clicked', { language: 'hindi' });
       translationBox.hidden = false;
-      translationBox.innerHTML = '<em>Translating...</em>';
+      translateBtn.disabled = true;
+      translateBtn.textContent = '⏳';
       try {
         const translated = await translateText(sourceText, 'hi');
-        translationBox.innerHTML = `<strong>[हिंदी]</strong> <span lang="hi">${escapeHtml(decodeHtml(translated))}</span>`;
-      } catch (error) {
-        translationBox.innerHTML = '<strong>[हिंदी]</strong> Translation unavailable.';
+        if (translated && translated.trim().length > 0) {
+          translationBox.innerHTML = `<strong>[हिंदी]</strong> <span lang="hi">${escapeHtml(decodeHtml(translated))}</span>`;
+        } else {
+          translationBox.innerHTML = '<span class="translate-unavailable">Translation unavailable right now.</span>';
+        }
+      } catch (e) {
+        translationBox.innerHTML = '<span class="translate-unavailable">Translation unavailable right now.</span>';
+      } finally {
+        translateBtn.disabled = false;
+        translateBtn.textContent = '🌐 Translate';
       }
     });
   }
   
   wrap.appendChild(row);
-  wrap.scrollTop = wrap.scrollHeight;
+  const messagesWrap = document.getElementById('messages');
+  messagesWrap.scrollTop = messagesWrap.scrollHeight;
 }
 
 function showTyping() {
@@ -1288,22 +1340,17 @@ function showTyping() {
     </div>
   `;
   wrap.appendChild(row);
-  wrap.scrollTop = wrap.scrollHeight;
+  const messagesWrap = document.getElementById('messages');
+  messagesWrap.scrollTop = messagesWrap.scrollHeight;
 }
 
 function hideTyping() {
   document.getElementById('typing')?.remove();
+  syncChatEmptyState();
 }
 
 function renderWelcome() {
-  const wrap = document.getElementById('messages');
-  wrap.innerHTML = `
-    <div class="chat-empty-state" id="chatEmptyState">
-      <div class="empty-icon">🗳️</div>
-      <h3>Ask me anything about Indian Elections</h3>
-      <p>Lok Sabha, EVMs, voter registration, election laws, current polls...</p>
-    </div>
-  `;
+  syncChatEmptyState();
 }
 
 function renderTopics() {

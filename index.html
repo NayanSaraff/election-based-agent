@@ -5,14 +5,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="ElectIQ India — AI-powered Indian election guide. Ask questions, track live results, read real-time news, and test your election knowledge.">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="robots" content="index, follow">
+  <meta name="keywords" content="India elections, EVM, Lok Sabha, Rajya Sabha, ECI, voter registration, election laws, Indian democracy">
+  <meta name="author" content="ElectIQ India">
   <meta property="og:title" content="ElectIQ India | AI Election Guide">
   <meta property="og:description" content="Your AI-powered guide to Indian elections — live news, results, laws, and quiz.">
   <meta property="og:url" content="https://election-based-agent-so18.vercel.app">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="https://election-based-agent-so18.vercel.app/icon.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="ElectIQ India | AI Election Guide">
+  <meta name="twitter:description" content="AI-powered Indian election guide with live news, results and quiz.">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.gstatic.com https://www.google-analytics.com https://www.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://api.groq.com https://newsdata.io https://*.googleapis.com https://www.google-analytics.com https://firestore.googleapis.com https://firebase.googleapis.com https://www.gstatic.com; img-src 'self' data: https:; object-src 'none'; base-uri 'self';">
   <title>ElectIQ India | Election Guide</title>
+  <link rel="canonical" href="https://election-based-agent-so18.vercel.app">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preload" href="app.js" as="script">
+  <link rel="preload" href="style.css" as="style">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -61,7 +72,7 @@
   <div class="app-shell">
     <header class="topbar">
       <a class="brand" href="#" aria-label="ElectIQ India home">
-        <img src="icon.svg" class="site-logo" alt="ElectIQ India logo">
+        <img src="icon.svg" class="site-logo" alt="ElectIQ India logo" loading="lazy">
         <div class="brand-name">Elect<em>IQ</em> India</div>
       </a>
 
@@ -104,7 +115,18 @@
           </aside>
 
           <div class="chat-main">
-            <div class="messages-wrap" id="messages"></div>
+            <div class="messages-wrap" id="messages">
+              <div class="chat-empty-state" id="chatEmptyState">
+                <div class="empty-icon">🗳️</div>
+                <h3>Ask me anything about Indian Elections</h3>
+                <p>Lok Sabha, EVMs, voter registration, election laws, current polls and more...</p>
+                <div class="empty-suggestions">
+                  <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='What is EVM?'; document.getElementById('sendBtn').click()">What is EVM?</button>
+                  <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='How is the President of India elected?'; document.getElementById('sendBtn').click()">How is President elected?</button>
+                  <button class="suggestion-chip" onclick="document.getElementById('chatInput').value='What is Model Code of Conduct?'; document.getElementById('sendBtn').click()">What is MCC?</button>
+                </div>
+              </div>
+            </div>
 
             <div class="input-bar">
               <div class="input-inner">

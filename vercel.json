@@ -48,8 +48,12 @@
       "dest": "/api/translate.js"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/$1"
+      "status": 404,
+      "dest": "/404.html"
     }
   ]
 }
