@@ -36,61 +36,42 @@ async function loadRemoteConfig() {
   }
 }
 
-const GEMINI_COOLDOWN_KEY = 'electiq_gemini_cooldown_until';
-const GEMINI_COOLDOWN_MS = 5 * 60 * 1000;
+const AI_COOLDOWN_KEY = 'electiq_ai_cooldown_until';
+const AI_COOLDOWN_MS = 5 * 60 * 1000;
 
-function getGeminiCooldownUntil() {
+function getAiCooldownUntil() {
   try {
-    return Number(localStorage.getItem(GEMINI_COOLDOWN_KEY) || 0);
+    return Number(localStorage.getItem(AI_COOLDOWN_KEY) || 0);
   } catch (error) {
     return 0;
   }
 }
 
-function setGeminiCooldown(durationMs = GEMINI_COOLDOWN_MS) {
+function setAiCooldown(durationMs = AI_COOLDOWN_MS) {
   try {
-    localStorage.setItem(GEMINI_COOLDOWN_KEY, String(Date.now() + durationMs));
+    localStorage.setItem(AI_COOLDOWN_KEY, String(Date.now() + durationMs));
   } catch (error) {
     // Ignore storage errors.
   }
 }
 
-function isGeminiCooldownActive() {
-  return Date.now() < getGeminiCooldownUntil();
+function isAiCooldownActive() {
+  return Date.now() < getAiCooldownUntil();
 }
 
-function isGeminiRateLimitError(error) {
+function isAiRateLimitError(error) {
   const message = String(error?.message || '');
-  return message === 'Gemini API error 429' || message.endsWith(' 429');
+  return message.includes('429') || message.includes('rate') || message.includes('Rate');
 }
 
 const ELECTION_HEADLINE_KEYWORDS = [
-  'election',
-  'elections',
-  'poll',
-  'polling',
-  'counting',
-  'results',
-  'result',
-  'candidate',
-  'candidates',
-  'nomination',
-  'nominations',
-  'campaign',
-  'campaigning',
-  'manifesto',
-  'voter',
-  'voting',
-  'electoral college',
-  'lok sabha',
-  'rajya sabha',
-  'vidhan sabha',
-  'assembly election',
-  'presidential election',
-  'vice presidential election',
-  'eci',
-  'evm',
-  'vvpat',
+  'election', 'elections', 'poll', 'polls', 'polling', 'counting', 'results', 'result',
+  'candidate', 'candidates', 'nomination', 'nominations', 'campaign', 'campaigning',
+  'manifesto', 'voter', 'voting', 'electoral college', 'lok sabha', 'rajya sabha',
+  'vidhan sabha', 'assembly election', 'presidential election', 'vice presidential election',
+  'eci', 'evm', 'vvpat', 'bypoll', 'by-election', 'election commission', 'model code', 'mcc',
+  'constituency', 'seat', 'seats', 'alliance', 'bjp', 'congress', 'aap', 'tmc', 'sp', 'bsp',
+  'nda', 'india bloc', 'turnout', 'booth', 'polling station', 'nomination',
 ];
 
 function isElectionHeadline(title) {
@@ -802,6 +783,7 @@ const stripBadJson = t => String(t).split("title:").pop().split("url:")[0].repla
 
       const dot = document.createElement('span');
       dot.className = 'news-dot';
+      if (item.source) dot.classList.add(`source-${item.source}`);
 
       const title = document.createElement('span');
       // Use textContent to avoid injecting tags or broken JSON
@@ -886,67 +868,63 @@ async function loadNewsTicker() {
     }
   }
 
-  // Fetch ECI news in parallel
-  const eciNewsPromise = fetchEciNews();
-
-  // PRIMARY: Try NewsData.io first (CORS-friendly, real-time news)
-  try {
-    const [newsDataItems, eciNews] = await Promise.all([fetchNewsDataIoHeadlines(), eciNewsPromise]);
-    
-    // Merge ECI news with NewsData.io headlines
-    let mergedItems = newsDataItems || [];
-    if (eciNews && eciNews.length) {
-      // Add ECI news items to the beginning (higher priority)
-      mergedItems = [...filterElectionHeadlines(eciNews).slice(0, 3), ...mergedItems];
-    }
-    
-    if (mergedItems && mergedItems.length) {
-      console.log('📰 Fetched', mergedItems.length, 'headlines from NewsData.io + ECI');
-      setTickerCache(mergedItems);
-      renderNewsTickerItems(mergedItems);
-      return;
-    }
-  } catch (error) {
-    console.warn('NewsData.io fetch failed:', error);
-  }
-
-  // SECONDARY: Try NewsAPI (may be blocked by CORS on browser)
-  try {
-    const newsApiItems = await fetchNewsApiHeadlines();
-    if (newsApiItems && newsApiItems.length) {
-      console.log('📰 Fetched', newsApiItems.length, 'headlines from NewsAPI');
-      setTickerCache(newsApiItems);
-      renderNewsTickerItems(newsApiItems);
-      return;
-    }
-  } catch (error) {
-    console.warn('NewsAPI fetch failed:', error);
-  }
-
-  // TERTIARY: Try RSS feeds (fallback)
+  // Fetch sources in parallel: NewsData, ECI RSS aggregator, NewsAPI, and configured RSS feeds
+  const sourcePromises = [];
+  sourcePromises.push(fetchNewsDataIoHeadlines()); // newsdata
+  sourcePromises.push(fetchEciNews()); // eci rss aggregator
+  sourcePromises.push(fetchNewsApiHeadlines()); // newsapi
+  // add configured RSS feeds as separate promises
   for (const feed of NEWS_TICKER_CONFIG.feeds) {
-    try {
-      const items = await fetchTickerFeed(feed);
-      const filteredItems = filterElectionHeadlines(items);
-      if (filteredItems && filteredItems.length) {
-        console.log('📰 Fetched', filteredItems.length, 'headlines from RSS feed');
-        setTickerCache(filteredItems);
-        renderNewsTickerItems(filteredItems);
-        return;
-      }
-    } catch (error) {
-      console.warn('News ticker feed failed:', feed, error);
-      continue;
-    }
+    sourcePromises.push(fetchTickerFeed(feed));
   }
 
-  // QUATERNARY: Try generating with Gemini
-  if (isGeminiCooldownActive()) {
-    console.warn('Gemini ticker generation skipped due to cooldown');
+  try {
+    const settled = await Promise.allSettled(sourcePromises);
+    // Collect successful arrays into a single list while preserving order (priority by index)
+    const combined = [];
+    for (let i = 0; i < settled.length; i++) {
+      const res = settled[i];
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        // Determine source label by index priority
+        let src = 'rss';
+        if (i === 0) src = 'newsdata';
+        else if (i === 1) src = 'eci';
+        else if (i === 2) src = 'newsapi';
+        // Normalize items to {title, url, source}
+        const items = res.value.map(it => ({ title: String(it.title || '').trim(), url: it.url || '#', source: src })).filter(it => it.title);
+        combined.push(...items);
+      }
+    }
+
+    // Deduplicate by normalized title (first 60 chars lowercase)
+    const seen = new Set();
+    const deduped = [];
+    for (const it of combined) {
+      const key = String(it.title || '').toLowerCase().trim().slice(0, 60);
+      if (!seen.has(key) && isElectionHeadline(it.title)) {
+        seen.add(key);
+        deduped.push(it);
+      }
+      if (deduped.length >= 15) break;
+    }
+
+    if (deduped.length >= 3) {
+      console.log('📰 Aggregated', deduped.length, 'unique headlines from parallel sources');
+      setTickerCache(deduped);
+      renderNewsTickerItems(deduped);
+      return;
+    }
+  } catch (error) {
+    console.warn('Parallel news aggregation failed:', error);
+  }
+
+  // QUATERNARY: Try generating with AI model
+  if (isAiCooldownActive()) {
+    console.warn('AI ticker generation skipped due to cooldown');
     if (hasExisting) {
       return;
     }
-    console.log('📰 Using fallback static headlines while Gemini is cooling down');
+    console.log('📰 Using fallback static headlines while AI is cooling down');
     renderNewsTickerItems(NEWS_TICKER_CONFIG.fallback);
     return;
   }
@@ -955,15 +933,15 @@ async function loadNewsTicker() {
     const genItems = await generateTickerWithGemini();
     const filteredGenItems = filterElectionHeadlines(genItems);
     if (filteredGenItems && filteredGenItems.length) {
-      console.log('📰 Generated', filteredGenItems.length, 'headlines with Gemini');
+      console.log('📰 Generated', filteredGenItems.length, 'headlines with AI model');
       setTickerCache(filteredGenItems);
       renderNewsTickerItems(filteredGenItems);
       return;
     }
   } catch (err) {
-    console.warn('Gemini ticker generation failed:', err);
-    if (isGeminiRateLimitError(err)) {
-      setGeminiCooldown();
+    console.warn('AI ticker generation failed:', err);
+    if (isAiRateLimitError(err)) {
+      setAiCooldown();
     }
   }
 
@@ -984,7 +962,7 @@ async function generateTickerWithGemini() {
     throw new Error('Gemini not configured');
   }
   const key = api.apiKey || api.key;
-  const prompt = `Default Gemini prompt: fetch only Indian election news. Provide 6 concise, recent-style India election headlines only as a JSON array. Every headline must be strictly about Indian elections, such as polling, counting, results, nominations, candidates, voter turnout, EVMs, VVPAT, the ECI, Lok Sabha, Rajya Sabha, Vidhan Sabha, or the President/Vice-President electoral college. Do not include any non-election topic. Each item should be an object with keys \"title\" and \"url\". If you cannot provide a real URL, use \"#\". Example: [{"title":"...","url":"..."}, ...]`;
+  const prompt = `Default AI prompt: fetch only Indian election news. Provide 6 concise, recent-style India election headlines only as a JSON array. Every headline must be strictly about Indian elections, such as polling, counting, results, nominations, candidates, voter turnout, EVMs, VVPAT, the ECI, Lok Sabha, Rajya Sabha, Vidhan Sabha, or the President/Vice-President electoral college. Do not include any non-election topic. Each item should be an object with keys \"title\" and \"url\". If you cannot provide a real URL, use \"#\". Example: [{"title":"...","url":"..."}, ...]`;
 
   const url = new URL(api.apiUrl);
   url.searchParams.append('key', key);
@@ -999,7 +977,7 @@ async function generateTickerWithGemini() {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Gemini ticker error ${res.status}: ${body}`);
+    throw new Error(`AI ticker error ${res.status}: ${body}`);
   }
   const data = await res.json();
   const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
@@ -1447,6 +1425,24 @@ function renderLiveResults(resultsData, electionId) {
   const panel = document.getElementById('resultsTableWrap');
   if (!panel) return;
 
+  // Check for no active election status
+    if (resultsData && resultsData.status === 'no_active_election') {
+      panel.innerHTML = `<div class="no-results-card">
+        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🗳️</div>
+        <h3>No Active Election</h3>
+        <p>Results will appear here automatically on counting day.</p>
+      </div>`;
+      return;
+    }
+  if (resultsData && resultsData.status === 'no_active_election') {
+    panel.innerHTML = `<div class="no-results-card">
+      <div style="font-size: 2.5rem; margin-bottom: 1rem;">🗳️</div>
+      <h3 style="margin: 0 0 0.5rem 0; font-size: 1.1rem; font-weight: 600;">No Active Election</h3>
+      <p style="margin: 0; color: var(--text-3, #999); font-size: 0.95rem;">Results will appear here automatically on counting day.</p>
+    </div>`;
+    return;
+  }
+
   if (!resultsData || !resultsData.html) {
     panel.innerHTML = '<div class="results-placeholder">No results data available yet</div>';
     return;
@@ -1734,7 +1730,7 @@ async function callModel(systemPrompt, messages, jsonMode = false) {
 
   if (!response.ok) {
     if (response.status === 429) {
-      setGeminiCooldown();
+      setAiCooldown();
     }
     throw new Error(data?.error || `Request failed with status ${response.status}`);
   }
@@ -1787,8 +1783,8 @@ async function sendChat() {
     appendMessage('assistant', html);
   } catch (error) {
     hideTyping();
-    const message = isGeminiRateLimitError(error)
-      ? 'Gemini is rate-limited right now. The app will use cached or fallback content until the cooldown expires.'
+    const message = isAiRateLimitError(error)
+      ? 'The AI is busy right now. Please wait a moment and try again.'
       : error.message;
     appendMessage('assistant', formatBubble(`I couldn't reach the model right now. ${message}`));
   } finally {
@@ -2039,6 +2035,7 @@ async function bootstrapApp() {
   document.getElementById('refreshBtn')?.addEventListener('click', async () => {
     const btn = document.getElementById('refreshBtn');
     btn.classList.add('spinning');
+    const start = Date.now();
     try {
       const item = getTrackerItem(state.tracker.selectedId);
       const stateCode = item.id.split('-')[0];
@@ -2049,6 +2046,10 @@ async function bootstrapApp() {
       const lastUpdated = document.getElementById('lastUpdated');
       if (lastUpdated) lastUpdated.textContent = `Error: ${error.message}`;
     } finally {
+      const elapsed = Date.now() - start;
+      if (elapsed < 1000) {
+        await new Promise(r => setTimeout(r, 1000 - elapsed));
+      }
       btn.classList.remove('spinning');
     }
   });
